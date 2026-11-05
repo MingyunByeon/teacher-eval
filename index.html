@@ -1155,7 +1155,7 @@ var Hwpx = (function () {
       : '';
     return '<div class="card"><h2>제출 현황 및 검증</h2>' +
       '<div class="row" style="margin-bottom:10px">' + fbtn('all', '전체', cnt.all) + fbtn('sub', '제출', cnt.sub) + fbtn('draft', '임시저장', cnt.draft) + fbtn('none', '미제출', cnt.none) + fbtn('mismatch', '확인 필요', cnt.mismatch) +
-      '<div class="spacer"></div><span class="small muted">정렬</span>' + sbtn('list', '명단 순서') + sbtn('rank', '순위(신분별 총점 순)') + '</div>' +
+      '<div class="spacer"></div><span class="small muted">정렬</span>' + sbtn('list', '명단 순서') + sbtn('rank', '정교사·기간제별 순위') + '</div>' +
       '<div class="row" style="margin-bottom:10px"><span class="small muted">신분</span>' + ebtn('all', '전체') + ebtn('정교사', '정교사') + ebtn('기간제', '기간제') +
       (unset ? ' <span class="err small">신분 미지정 ' + unset + '명: 교사·인증번호 메뉴에서 지정해 주십시오.</span>' : '') + '</div>' +
       '<div class="row" style="margin-bottom:12px"><button class="btn primary" data-act="aVerifyAll">제출자 전체 검증</button>' +
