@@ -1622,8 +1622,9 @@ var Hwpx = (function () {
     var hv = function (no, label, short) { return '<th class="v" title="' + esc(no + ' ' + label) + '"><span class="vt">' + no + ' ' + esc(short || label) + '</span></th>'; };
     return '<div class="card"><h2>담당업무 매트릭스: 나. 생활지도 · 라. 담당업무</h2>' +
       '<div class="notice small">· 행은 교사, 열은 라. 담당업무 항목입니다. 체크하거나 횟수·건수를 입력하면 [라. 담당업무 - 업무곤란도] 점수가 자동 계산됩니다(3점 상한).<br>' +
-      '· ⑦~⑩ 위원회는 참석 횟수를 입력합니다(1회 0.02점, 위원회별 최대 0.2점). ⑪ 표창은 교사가 평가표에 직접 입력하며, 여기에는 검증용 위원회 확인 건수를 수기로 입력합니다.<br>' +
-      '· ① 예산 지원 사업 목록은 설정 메뉴에서 추가하거나 뺄 수 있습니다. 열 제목에 마우스를 올리면 항목의 전체 이름이 보입니다.</div>' +
+      '· ① 예산 지원 사업 목록은 설정 메뉴에서 추가하거나 뺄 수 있습니다. 열 제목에 마우스를 올리면 항목의 전체 이름이 보입니다.<br>' +
+      '· ⑦~⑩ 위원회는 참석 횟수를 입력합니다(1회 0.02점, 위원회별 최대 0.2점).<br>' +
+      '· ⑪ 표창은 교사가 평가표에 직접 입력하며, 여기에는 검증용 위원회 확인 건수를 수기로 입력합니다.</div>' +
       '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">나. 생활지도 -<br>생활지도 곤란도<br>구분</th><th rowspan="2">라. 담당업무 -<br>업무추진<br>역할</th>' +
       (bl.length ? '<th colspan="' + bl.length + '">① 예산 지원 사업 실무(0.1)</th>' : '') + '<th colspan="5">②~⑥ 해당 여부(0.2)</th><th colspan="4">⑦~⑩ 참석 횟수</th><th colspan="2">⑪ 표창(위원회 확인)</th><th rowspan="2" class="v" title="⑫ 업무곤란도 부장 및 담당업무(1점): 교무기획부장, 교육연구부장, 학생생활교육부장, 학폭책임교사, 학교생활기록부"><span class="vt">⑫ 부장·고정업무</span></th><th colspan="3">계산 결과</th></tr><tr>' +
       bl.map(function (n) { return hv('①', n); }).join('') + Calc.M_FLAGS.map(function (x) { return hv(x.no, x.label, x.short); }).join('') + Calc.M_COUNTS.map(function (x) { return hv(x.no, x.label, x.short); }).join('') +
