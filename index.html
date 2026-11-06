@@ -162,7 +162,8 @@ table.grid td input[type=number] { text-align: center; }
 /* 점수 계산 · 근거 생성 · 검증 (교사 화면과 관리 화면이 함께 사용) */
 var Calc = (function () {
   var COUNTED = ['동아리', '스포츠클럽', '주제선택', '진로탐색'];
-  var KINDS = ['동아리', '스포츠클럽', '주제선택', '진로탐색', '창체 진로', '기타'];
+  var KINDS = ['동아리', '스포츠클럽', '주제선택', '진로탐색', '창체 진로', '교과 수업', '기타'];
+  var SUBJECT_KIND = '교과 수업';   // 교과 수업의 팀티칭(에코 수업 등): 시수 1/2 인정, 해당 학년은 다학년에서 제외
   var LIFE30 = ['담임', '학년부장', '학생생활교육부장', '학폭책임교사', '보건교사'];
   var LIFE_OPTIONS = LIFE30.concat(['그 외']);
   var ROLE_SCORE = { '부장': 27, '담임': 26, '비담임': 25 };
@@ -264,7 +265,7 @@ var Calc = (function () {
       worked.forEach(function (w) {
         var h = semHours(w.s);
         tot += h.recog;
-        parts.push(semName(w.i) + ': ' + f(h.raw) + '시간' + (h.team ? ' (팀티칭 ' + f(h.team) + '시간은 1/2만 인정 → ' + f(h.recog) + '시간)' : ''));
+        parts.push(semName(w.i) + ': ' + f(h.raw) + '시간' + (h.team ? ' (팀티칭 ' + f(h.team) + '시간은 1/2인 ' + f(h.team / 2) + '시간만 인정 → ' + f(h.recog) + '시간)' : ''));
       });
       var avg = tot / worked.length;
       S.g1 = hoursScore(avg);
@@ -275,10 +276,21 @@ var Calc = (function () {
     // 가2 다학년 교과지도
     var g2 = 0, p2 = [];
     worked.forEach(function (w) {
-      var g = ref.type === '특수' ? 2 : num(w.s.grades);
+      var g0 = ref.type === '특수' ? 2 : num(w.s.grades);
+      // 교과 수업 팀티칭(1/3 이상) 학년은 다학년 교과지도 실적으로 인정하지 않음
+      var taught = {};
+      (String(w.s.gradesText || '').match(/(\d)\(/g) || []).forEach(function (x) { taught[x[0]] = 1; });
+      var hasText = Object.keys(taught).length > 0, ex = {};
+      (w.s.programs || []).forEach(function (p) {
+        var gr = String(p.grade);
+        if (p.team && p.kind === SUBJECT_KIND && Number(p.grade) > 0 && (!hasText || taught[gr])) ex[gr] = 1;
+      });
+      var exList = Object.keys(ex).sort();
+      var g = Math.max(0, g0 - exList.length);
       var pt = gradePoint(g);
       g2 += pt;
-      p2.push(semName(w.i) + ': ' + g + '개 학년' + (ref.type === '특수' ? ' (특수교사 2개 학년 인정)' : '') + ' → ' + f(pt) + '점');
+      p2.push(semName(w.i) + ': ' + g0 + '개 학년' + (ref.type === '특수' ? ' (특수교사 2개 학년 인정)' : '') +
+        (exList.length ? ' − 팀티칭 ' + exList.map(function (x) { return x + '학년'; }).join('·') + ' 제외 = ' + g + '개 학년' : '') + ' → ' + f(pt) + '점');
     });
     S.g2 = r2(g2);
     var nonClass = (ref.type === '보건' || ref.type === '사서') && !g2;
@@ -443,7 +455,7 @@ var Calc = (function () {
   }
 
   return {
-    ITEMS: ITEMS, KINDS: KINDS, COUNTED: COUNTED, LIFE_OPTIONS: LIFE_OPTIONS, ROLES: Object.keys(ROLE_SCORE), TYPES: TYPES,
+    ITEMS: ITEMS, KINDS: KINDS, SUBJECT_KIND: SUBJECT_KIND, COUNTED: COUNTED, LIFE_OPTIONS: LIFE_OPTIONS, ROLES: Object.keys(ROLE_SCORE), TYPES: TYPES,
     M_FLAGS: M_FLAGS, M_COUNTS: M_COUNTS,
     r2: r2, has: has, num: num, hoursScore: hoursScore, healthScore: healthScore, trainingScore: trainingScore,
     semHours: semHours, schoolAvgHours: schoolAvgHours, compute: compute, summarize: summarize,
@@ -1489,11 +1501,12 @@ var Hwpx = (function () {
         '<td>' + refInput(id, 'check.openCount', 'numnull', r.check.openCount, 50, ' step="1"') + '</td><td>' + refInput(id, 'check.trainingHours', 'numnull', r.check.trainingHours, 60) + '</td>' +
         '<td>' + refInput(id, 'note', 'text', r.note, 220) + '</td></tr>';
     }).join('');
-    var sh = '<th>근무</th><th>주당 시수</th><th>담당 학년(학급)</th><th>학년 수</th><th>창체·자유학기</th>';
+    var sh = '<th>근무</th><th>주당 시수</th><th>담당 학년(학급)</th><th>학년 수</th><th>창체·자유학기<br>교과 팀티칭</th>';
     return '<div class="card"><h2>기준자료: 가. 학습지도 · 확인값</h2>' +
       '<div class="notice small">· 주당 시수는 교과협의록의 총시수(교과+창체)입니다. 팀티칭 1/3 이상으로 체크한 프로그램의 시간은 자동으로 1/2만 인정됩니다.<br>' +
       '· 담당 학년을 고치면 학년 수가 자동으로 다시 계산됩니다. 순회교사의 순회교 학년, 진로교사의 창체 진로 학년은 학년 수에서 직접 조정하십시오. 특수교사는 자동으로 2개 학년이 적용됩니다.<br>' +
       '· 창체·자유학기 버튼을 누르면 프로그램별로 종류, 학년, 시간, <b>팀티칭 1/3 이상 여부</b>를 지정할 수 있습니다. 팀티칭 프로그램은 지도 개수에서 제외되고, 시수는 1/2만 인정됩니다.<br>' +
+      '· <b>교과 수업의 팀티칭</b>(에코 수업 등)은 같은 창에서 종류를 \'교과 수업\'으로 골라 입력합니다. 시수는 1/2만 인정되고, 그 학년은 다학년 교과지도에서 제외됩니다.<br>' +
       '· 근무하지 않은 학기는 근무 체크를 해제하십시오(해당 학기 제외 후 계산). 학교 평균 시수(사서 등 평균 시수 인정 교사용): <b>' + fmt(eff.avgHours) + '시간</b>' + (Calc.has(A.D.settings.avgHoursManual) && A.D.settings.avgHoursManual !== '' ? ' (설정에서 지정)' : ' (자동 계산)') + '<br>' +
       '· 확인값(외부공개 횟수, 연수 시간)은 검증할 때 교사 입력값과 비교하는 관리자 기준입니다. 비워 두면 해당 항목은 "기준 없음"으로 표시됩니다.</div>' +
       '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">유형</th><th colspan="5">1학기</th><th colspan="5">2학기</th><th rowspan="2">평균 시수 인정</th><th rowspan="2">보건 건수</th><th colspan="3">가. 학습지도 자동 계산</th><th colspan="2">관리자 확인값</th><th rowspan="2">비고</th></tr>' +
@@ -1539,9 +1552,10 @@ var Hwpx = (function () {
           '<td><input type="text" style="width:180px" data-pi="' + i + '" data-pk="memo" value="' + esc(p.memo || '') + '"></td>' +
           '<td><button class="btn sm danger" data-pdel="' + i + '">삭제</button></td></tr>';
       }).join('');
-      var m = modal('<h3>' + esc(t.name) + ' · ' + (si + 1) + '학기 창체·자유학기 프로그램</h3>' +
+      var m = modal('<h3>' + esc(t.name) + ' · ' + (si + 1) + '학기 창체·자유학기 프로그램 / 교과 팀티칭</h3>' +
         '<p class="muted small">학년별로 따로 운영하면 학년마다 1개로 입력합니다(예: 스포츠클럽 1/1 2/1 3/1 → 3개). 동아리·스포츠클럽·주제선택·진로탐색만 개수에 포함되며, ' +
         '<b>팀티칭 1/3 이상</b>으로 체크한 프로그램은 지도 개수에서 빠지고, 수업시수는 1/2만 인정됩니다.</p>' +
+        '<p class="small" style="background:#fff4d6;padding:8px 10px;border-radius:6px"><b>교과 수업 팀티칭</b>(에코 수업 등): 팀티칭 시간이 그 수업의 1/3 이상이면, 종류를 \'교과 수업\'으로 고르고 학년과 <b>그 수업 전체의 주당 시간</b>(혼자 하는 시간 포함)을 넣은 뒤 팀티칭에 체크합니다. 예: 1학년 6개 반 × 2시간 = 12시간 중 6시간이 에코 수업이면 비율 1/2(1/3 이상)이므로 <b>12</b>를 입력 → 12시간의 절반인 6시간만 인정됩니다. 그 학년은 다학년 교과지도에서 제외됩니다. 팀티칭이 1/3 미만이면 입력하지 않습니다.</p>' +
         '<div class="tw"><table class="t"><thead><tr><th>종류</th><th>학년</th><th>주당 시간</th><th>팀티칭 1/3 이상</th><th>메모</th><th></th></tr></thead><tbody>' +
         (rows || '<tr><td colspan="6" class="c muted">프로그램이 없습니다.</td></tr>') + '</tbody></table></div>' +
         '<div class="row" style="margin-top:10px"><select id="pq-kind">' + Calc.KINDS.map(function (k) { return '<option>' + k + '</option>'; }).join('') + '</select>' +
