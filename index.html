@@ -39,6 +39,9 @@ label.f { display: block; margin-bottom: 10px; }
 label.f > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 input[type=text], input[type=password], input[type=number], input[type=datetime-local], select, textarea {
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: #fff; max-width: 100%; }
+/* 숫자 칸의 위아래 증감 버튼 제거(직접 입력만 사용) */
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand-weak); border-color: var(--brand); }
 input.w100 { width: 100%; }
 textarea { width: 100%; min-height: 54px; resize: vertical; }
@@ -725,6 +728,14 @@ var Hwpx = (function () {
   document.addEventListener('submit', function (e) {
     var f = e.target.dataset && FORMS[e.target.dataset.form];
     if (f) { e.preventDefault(); f(e.target); }
+  });
+  /* 숫자 칸: 마우스 휠·위아래 화살표 키로 값이 바뀌지 않게 함 */
+  document.addEventListener('wheel', function (e) {
+    var el = document.activeElement;
+    if (el && el.type === 'number' && e.target === el) el.blur();
+  }, { passive: true });
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) e.preventDefault();
   });
   window.addEventListener('beforeunload', function (e) {
     if (T.dirty || Object.keys(A.dirty).length) { e.preventDefault(); e.returnValue = ''; }
