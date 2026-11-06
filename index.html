@@ -286,7 +286,7 @@ var Calc = (function () {
       var hasText = Object.keys(taught).length > 0, ex = {};
       (w.s.programs || []).forEach(function (p) {
         var gr = String(p.grade);
-        if (p.team && p.kind === SUBJECT_KIND && Number(p.grade) > 0 && (!hasText || taught[gr])) ex[gr] = 1;
+        if (p.team && p.kind === SUBJECT_KIND && p.exGrade !== false && Number(p.grade) > 0 && (!hasText || taught[gr])) ex[gr] = 1;
       });
       var exList = Object.keys(ex).sort();
       var g = Math.max(0, g0 - exList.length);
@@ -1560,15 +1560,16 @@ var Hwpx = (function () {
           '<td><select data-pi="' + i + '" data-pk="grade">' + [0, 1, 2, 3].map(function (g) { return '<option value="' + g + '"' + (Number(p.grade) === g ? ' selected' : '') + '>' + (g ? g + '학년' : '공통') + '</option>'; }).join('') + '</select></td>' +
           '<td><input type="number" step="0.5" min="0" style="width:64px" data-pi="' + i + '" data-pk="hours" value="' + esc(val(p.hours)) + '"></td>' +
           '<td class="c"><input type="checkbox" data-pi="' + i + '" data-pk="team"' + (p.team ? ' checked' : '') + '></td>' +
+          '<td class="c">' + (p.kind === Calc.SUBJECT_KIND && p.team ? '<input type="checkbox" data-pi="' + i + '" data-pk="exGrade"' + (p.exGrade !== false ? ' checked' : '') + '>' : '<span class="muted">-</span>') + '</td>' +
           '<td><input type="text" style="width:180px" data-pi="' + i + '" data-pk="memo" value="' + esc(p.memo || '') + '"></td>' +
           '<td><button class="btn sm danger" data-pdel="' + i + '">삭제</button></td></tr>';
       }).join('');
       var m = modal('<h3>' + esc(t.name) + ' · ' + (si + 1) + '학기 창체·자유학기 프로그램 / 교과 팀티칭</h3>' +
         '<p class="muted small">학년별로 따로 운영하면 학년마다 1개로 입력합니다(예: 스포츠클럽 1/1 2/1 3/1 → 3개). 동아리·스포츠클럽·주제선택·진로탐색만 개수에 포함되며, ' +
         '<b>팀티칭 1/3 이상</b>으로 체크한 프로그램은 지도 개수에서 빠지고, 수업시수는 1/2만 인정됩니다.</p>' +
-        '<p class="small" style="background:#fff4d6;padding:8px 10px;border-radius:6px"><b>교과 수업 팀티칭</b>(에코 수업 등): 팀티칭 시간이 그 수업의 1/3 이상이면, 종류를 \'교과 수업\'으로 고르고 학년과 <b>그 수업 전체의 주당 시간</b>(혼자 하는 시간 포함)을 넣은 뒤 팀티칭에 체크합니다. 예: 1학년 6개 반 × 2시간 = 12시간 중 6시간이 에코 수업이면 비율 1/2(1/3 이상)이므로 <b>12</b>를 입력 → 12시간의 절반인 6시간만 인정됩니다. 그 학년은 다학년 교과지도에서 제외됩니다. 팀티칭이 1/3 미만이면 입력하지 않습니다.</p>' +
-        '<div class="tw"><table class="t"><thead><tr><th>종류</th><th>학년</th><th>주당 시간</th><th>팀티칭 1/3 이상</th><th>메모</th><th></th></tr></thead><tbody>' +
-        (rows || '<tr><td colspan="6" class="c muted">프로그램이 없습니다.</td></tr>') + '</tbody></table></div>' +
+        '<p class="small" style="background:#fff4d6;padding:8px 10px;border-radius:6px"><b>교과 수업 팀티칭</b>(에코 수업 등): 종류를 \'교과 수업\'으로 고르고, 학년과 <b>팀티칭으로 인정을 절반만 받을 주당 시간</b>을 넣은 뒤 팀티칭에 체크합니다. 넣은 시간의 1/2만 인정됩니다.<br>예: 1학년 12시간 중 음악 6시간(혼자) + 에코 6시간(팀티칭) → <b>6</b> 입력 → 음악 6 + 에코 3 = 9시간 인정.<br><b>다학년 제외</b>: 그 학년 수업이 모두 팀티칭이면 체크(그 학년을 다학년에서 뺌), 위 예처럼 혼자 하는 수업이 따로 있으면 해제합니다.</p>' +
+        '<div class="tw"><table class="t"><thead><tr><th>종류</th><th>학년</th><th>주당 시간</th><th>팀티칭 1/3 이상</th><th>다학년 제외</th><th>메모</th><th></th></tr></thead><tbody>' +
+        (rows || '<tr><td colspan="7" class="c muted">프로그램이 없습니다.</td></tr>') + '</tbody></table></div>' +
         '<div class="row" style="margin-top:10px"><select id="pq-kind">' + Calc.KINDS.map(function (k) { return '<option>' + k + '</option>'; }).join('') + '</select>' +
         '<input type="text" id="pq-text" placeholder="협의록 표기 예: 1/1 2/1 3/1" style="width:200px"><button class="btn sm" id="pq-add">빠른 추가</button><button class="btn sm" id="p-add">한 줄 추가</button></div>' +
         '<p>인정 개수: <b>' + n + '개</b> → ' + fmt(n >= 4 ? 0.2 : n * 0.05) + '점</p>' +
@@ -1576,7 +1577,7 @@ var Hwpx = (function () {
       m.querySelectorAll('[data-pi]').forEach(function (el) {
         el.addEventListener('change', function () {
           var p = list[Number(el.dataset.pi)], k = el.dataset.pk;
-          p[k] = k === 'team' ? el.checked : (k === 'hours' || k === 'grade') ? Number(el.value) : el.value;
+          p[k] = (k === 'team' || k === 'exGrade') ? el.checked : (k === 'hours' || k === 'grade') ? Number(el.value) : el.value;
           if (k === 'team' || k === 'kind') draw();
         });
       });
