@@ -290,13 +290,13 @@ var Calc = (function () {
       var cnt = {}, n = 0, ex = 0;
       (w.s.programs || []).forEach(function (p) {
         if (COUNTED.indexOf(p.kind) < 0) return;
-        if (p.team) { ex++; return; }
+        if (p.team) ex++;   // 팀티칭 프로그램도 지도 실적으로 셈(시수만 1/2 인정)
         cnt[p.kind] = (cnt[p.kind] || 0) + 1; n++;
       });
       var pt = progPoint(n);
       g3 += pt;
       var desc = Object.keys(cnt).map(function (k) { return k + ' ' + cnt[k]; }).join(', ');
-      p3.push(semName(w.i) + ': ' + (desc || '없음') + (n ? ' (' + n + '개)' : '') + (ex ? ' · 팀티칭 ' + ex + '개 제외' : '') + ' → ' + f(pt) + '점');
+      p3.push(semName(w.i) + ': ' + (desc || '없음') + (n ? ' (' + n + '개)' : '') + (ex ? ' · 팀티칭 ' + ex + '개 포함' : '') + ' → ' + f(pt) + '점');
     });
     S.g3 = r2(g3);
     B.g3 = ((ref.type === '보건' || ref.type === '사서') && !g3) ? '비교과 교사: 해당 없음' : p3.length ? p3.join('\n') + '\n= 합계 ' + S.g3 + '점' : '해당 없음';
@@ -799,7 +799,7 @@ var Hwpx = (function () {
     '순회교사의 순회교 다학년 교과지도 실적을 인정합니다. 특수교사는 다학년 교과지도를 2개 학년으로 인정합니다. 진로교사는 창체 진로를 다학년 교과지도로 인정합니다.',
     '창체나 자유학기제 프로그램은 다학년 교과지도로 인정하지 않습니다.',
     '창체는 동아리·스포츠클럽, 자유학기제는 주제선택프로그램·진로탐색프로그램 지도를 인정합니다.',
-    '팀코칭이 수업 시수의 1/3 이상인 프로그램은 창체 및 자유학기 지도, 다학년 교과지도 실적으로 인정하지 않습니다.',
+    '팀코칭이 수업 시수의 1/3 이상인 프로그램은 다학년 교과지도 실적으로 인정하지 않습니다. 창체 및 자유학기 지도 개수에는 포함하되, 수업시수는 1/2만 인정합니다.',
     '가. 학습지도 총점은 30점을 초과할 수 없습니다. 라. 업무곤란도는 3점을 초과할 수 없습니다.',
     '보건교사의 생활지도 곤란도는 담임교사 기본점수에 해당하는 점수를 인정합니다.',
     '연수이수 실적은 나이스 출력물 또는 이수증 사본으로 확인합니다(2026.3.1. 연수부터 인정, 12월 말까지 이수 완료).',
@@ -1493,7 +1493,7 @@ var Hwpx = (function () {
     return '<div class="card"><h2>기준자료: 가. 학습지도 · 확인값</h2>' +
       '<div class="notice small">· 주당 시수는 교과협의록의 총시수(교과+창체)입니다. 팀티칭 1/3 이상으로 체크한 프로그램의 시간은 자동으로 1/2만 인정됩니다.<br>' +
       '· 담당 학년을 고치면 학년 수가 자동으로 다시 계산됩니다. 순회교사의 순회교 학년, 진로교사의 창체 진로 학년은 학년 수에서 직접 조정하십시오. 특수교사는 자동으로 2개 학년이 적용됩니다.<br>' +
-      '· 창체·자유학기 버튼을 누르면 프로그램별로 종류, 학년, 시간, <b>팀티칭 1/3 이상 여부</b>를 지정할 수 있습니다. 팀티칭 프로그램은 개수에서 제외됩니다.<br>' +
+      '· 창체·자유학기 버튼을 누르면 프로그램별로 종류, 학년, 시간, <b>팀티칭 1/3 이상 여부</b>를 지정할 수 있습니다. 팀티칭 프로그램도 지도 개수에는 포함되고, 시수만 1/2로 인정됩니다.<br>' +
       '· 근무하지 않은 학기는 근무 체크를 해제하십시오(해당 학기 제외 후 계산). 학교 평균 시수(사서 등 평균 시수 인정 교사용): <b>' + fmt(eff.avgHours) + '시간</b>' + (Calc.has(A.D.settings.avgHoursManual) && A.D.settings.avgHoursManual !== '' ? ' (설정에서 지정)' : ' (자동 계산)') + '<br>' +
       '· 확인값(외부공개 횟수, 연수 시간)은 검증할 때 교사 입력값과 비교하는 관리자 기준입니다. 비워 두면 해당 항목은 "기준 없음"으로 표시됩니다.</div>' +
       '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">유형</th><th colspan="5">1학기</th><th colspan="5">2학기</th><th rowspan="2">평균 시수 인정</th><th rowspan="2">보건 건수</th><th colspan="3">가. 학습지도 자동 계산</th><th colspan="2">관리자 확인값</th><th rowspan="2">비고</th></tr>' +
@@ -1530,7 +1530,7 @@ var Hwpx = (function () {
     var list = clone(A.D.refs[id].sems[si].programs || []);
     var t = tById(id);
     var draw = function () {
-      var n = list.filter(function (p) { return Calc.COUNTED.indexOf(p.kind) >= 0 && !p.team; }).length;
+      var n = list.filter(function (p) { return Calc.COUNTED.indexOf(p.kind) >= 0; }).length;
       var rows = list.map(function (p, i) {
         return '<tr><td><select data-pi="' + i + '" data-pk="kind">' + Calc.KINDS.map(function (k) { return '<option' + (k === p.kind ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></td>' +
           '<td><select data-pi="' + i + '" data-pk="grade">' + [0, 1, 2, 3].map(function (g) { return '<option value="' + g + '"' + (Number(p.grade) === g ? ' selected' : '') + '>' + (g ? g + '학년' : '공통') + '</option>'; }).join('') + '</select></td>' +
@@ -1541,7 +1541,7 @@ var Hwpx = (function () {
       }).join('');
       var m = modal('<h3>' + esc(t.name) + ' · ' + (si + 1) + '학기 창체·자유학기 프로그램</h3>' +
         '<p class="muted small">학년별로 따로 운영하면 학년마다 1개로 입력합니다(예: 스포츠클럽 1/1 2/1 3/1 → 3개). 동아리·스포츠클럽·주제선택·진로탐색만 개수에 포함되며, ' +
-        '<b>팀티칭 1/3 이상</b>으로 체크한 프로그램은 개수에서 빠지고 시수는 1/2만 인정됩니다.</p>' +
+        '<b>팀티칭 1/3 이상</b>으로 체크한 프로그램도 지도 개수에는 포함되며, 수업시수만 1/2로 인정됩니다.</p>' +
         '<div class="tw"><table class="t"><thead><tr><th>종류</th><th>학년</th><th>주당 시간</th><th>팀티칭 1/3 이상</th><th>메모</th><th></th></tr></thead><tbody>' +
         (rows || '<tr><td colspan="6" class="c muted">프로그램이 없습니다.</td></tr>') + '</tbody></table></div>' +
         '<div class="row" style="margin-top:10px"><select id="pq-kind">' + Calc.KINDS.map(function (k) { return '<option>' + k + '</option>'; }).join('') + '</select>' +
