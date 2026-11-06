@@ -380,7 +380,7 @@ var Calc = (function () {
     return '';
   }
 
-  /* 검증: 관리자 기준자료(+관리자 확인값)로 계산한 점수와 교사 제출 점수 비교 */
+  /* 검증: 위원회 기준자료(+위원회 확인값)로 계산한 점수와 교사 제출 점수 비교 */
   function verify(ref, settings, sub, adj) {
     var chk = (ref && ref.check) || {};
     var ti = (sub && sub.inputs) || {};
@@ -399,7 +399,7 @@ var Calc = (function () {
       var status, note = '';
       if ((it.key === 'g4' && !has(chk.openCount)) || (it.key === 'd' && !has(chk.trainingHours))) {
         status = '기준 없음'; base = null; nobase++;
-        note = '관리자 확인값이 입력되지 않았습니다.';
+        note = '위원회 확인값이 입력되지 않았습니다.';
       } else if (!has(t)) {
         status = '확인 필요'; mismatch++; note = '교사 점수가 비어 있습니다.';
       } else if (Math.abs(Number(t) - base) > 0.0001) {
@@ -407,13 +407,13 @@ var Calc = (function () {
       } else {
         status = '일치';
       }
-      if (it.key === 'r1' && !useAward) note = (note ? note + ' ' : '') + '표창 건수는 관리자 확인값이 없어 교사 입력값을 사용했습니다.';
+      if (it.key === 'r1' && !useAward) note = (note ? note + ' ' : '') + '표창 건수는 위원회 확인값이 없어 교사 입력값을 사용했습니다.';
       var a = adj && adj.scores ? adj.scores[it.key] : undefined;
       if (has(a)) {
         if (status === '확인 필요') mismatch--;
         if (status === '기준 없음') nobase--;
         status = '조정 반영'; adjusted++;
-        note = '관리자 조정 점수 ' + r2(a) + '점이 최종 점수로 반영됩니다.' + (note ? ' ' + note : '');
+        note = '위원회 조정 점수 ' + r2(a) + '점이 최종 점수로 반영됩니다.' + (note ? ' ' + note : '');
       }
       items[it.key] = { teacher: has(t) ? Number(t) : null, base: base, adjusted: has(a) ? Number(a) : null, status: status, basis: c.basis[it.key], note: note };
     });
@@ -423,7 +423,7 @@ var Calc = (function () {
     return { items: items, mismatch: mismatch, nobase: nobase, adjusted: adjusted, baseSummary: summarize(bs) };
   }
 
-  /* 최종 점수 = 관리자 조정 점수 우선, 없으면 교사 제출 점수 */
+  /* 최종 점수 = 위원회 조정 점수 우선, 없으면 교사 제출 점수 */
   function finalScores(sub, adj) {
     var S = {};
     ITEMS.forEach(function (it) {
@@ -747,7 +747,7 @@ var Hwpx = (function () {
       : (A.D ? A.D.settings.year + '학년도 ' + esc(A.D.settings.schoolName) + ' 다면평가' : '다면평가(정량평가)');
     var top = '<div class="topbar"><div class="wrap"><div class="brand">' + title + '</div>' +
       '<div class="tabs"><button class="tab' + (ST.tab === 'teacher' ? ' on' : '') + '" data-act="tab" data-v="teacher">교사</button>' +
-      '<button class="tab' + (ST.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-v="admin">관리</button></div><div class="spacer"></div>' +
+      '<button class="tab' + (ST.tab === 'admin' ? ' on' : '') + '" data-act="tab" data-v="admin">위원회</button></div><div class="spacer"></div>' +
       ((ST.tab === 'teacher' && T.b) || (ST.tab === 'admin' && A.D) ? '<button class="btn sm" data-act="logout">로그아웃</button>' : '') +
       '</div></div>';
     $app.innerHTML = top + '<div class="wrap" id="main"></div><div id="print-area"></div>';
@@ -848,9 +848,9 @@ var Hwpx = (function () {
     var autoBar = '<div class="autobar">' +
       '<button class="btn primary" data-act="tAutoAll"' + (ro || !b.ref ? ' disabled' : '') + '>자동 입력</button>' +
       '<div class="small">' + (b.ref
-        ? '관리자가 세팅한 정보로 <b>모든 점수와 근거</b>를 채웁니다. 채운 뒤에도 점수와 근거를 <b>자유롭게 고칠 수 있습니다.</b><br>' +
+        ? '다면평가관리위원회가 세팅한 정보로 <b>모든 점수와 근거</b>를 채웁니다. 채운 뒤에도 점수와 근거를 <b>자유롭게 고칠 수 있습니다.</b><br>' +
           '외부 수업공개 횟수, 연수 이수 시간, 표창 건수는 노란 칸에 직접 입력해 주십시오. 입력하면 해당 점수가 바로 다시 계산됩니다.'
-        : '<span class="err">관리자 기준자료가 아직 준비되지 않아 자동 입력을 사용할 수 없습니다. 점수를 직접 입력해 주십시오.</span>') + '</div></div>';
+        : '<span class="err">다면평가관리위원회 기준자료가 아직 준비되지 않아 자동 입력을 사용할 수 없습니다. 점수를 직접 입력해 주십시오.</span>') + '</div></div>';
 
     var mobile = window.innerWidth < 720;
     var rows = '';
@@ -1000,8 +1000,8 @@ var Hwpx = (function () {
 
   /* ============================================================ 관리 */
   function adminLogin() {
-    return '<div class="card login"><h2>관리자 로그인</h2>' +
-      '<form data-form="aLogin"><label class="f"><span>관리자 비밀번호</span><input type="password" id="a-pw" class="w100" required autocomplete="current-password"></label>' +
+    return '<div class="card login"><h2>다면평가관리위원회 로그인</h2>' +
+      '<form data-form="aLogin"><label class="f"><span>위원회 비밀번호</span><input type="password" id="a-pw" class="w100" required autocomplete="current-password"></label>' +
       '<button class="btn primary" type="submit" style="width:100%">들어가기</button></form></div>';
   }
   FORMS.aLogin = function () {
@@ -1172,7 +1172,7 @@ var Hwpx = (function () {
     var rankNote = A.sort === 'rank'
       ? '<div class="notice ' + (pending ? 'amber' : '') + ' small">' + (pending
           ? '아직 제출을 마치지 않은 교사가 <b>' + pending + '명</b>(임시저장 ' + cnt.draft + '명, 미제출 ' + cnt.none + '명) 있습니다. 순위는 제출 완료자 ' + R.n + '명 기준이며, 이후 제출에 따라 바뀔 수 있습니다.'
-          : '전체 ' + cnt.all + '명이 제출을 마쳤습니다. 최종 총점(관리자 조정 반영) 높은 순입니다.') +
+          : '전체 ' + cnt.all + '명이 제출을 마쳤습니다. 최종 총점(위원회 조정 반영) 높은 순입니다.') +
         ' 순위는 <b>정교사(' + (R.n['정교사'] || 0) + '명)와 기간제(' + (R.n['기간제'] || 0) + '명)를 따로</b> 매깁니다.' +
         ' 동점자는 같은 순위로 표시되므로, 학교의 동점자 처리 기준에 따라 정해 주십시오.</div>'
       : '';
@@ -1186,7 +1186,7 @@ var Hwpx = (function () {
       '<button class="btn" data-act="aRankCsv">순위표 내려받기(CSV)</button>' +
       '<button class="btn" data-act="aDownload" data-v="zip">교사별 HWPX 내려받기(ZIP)</button><button class="btn" data-act="aDownload" data-v="one">통합 HWPX 내려받기(1개 파일)</button></div>' +
       rankNote +
-      '<p class="muted small">점수는 관리자 조정 점수를 우선 반영한 최종 점수입니다. 내려받는 평가표에도 최종 점수가 들어갑니다. 순위는 제출 완료자만 매깁니다.</p>' +
+      '<p class="muted small">점수는 위원회 조정 점수를 우선 반영한 최종 점수입니다. 내려받는 평가표에도 최종 점수가 들어갑니다. 순위는 제출 완료자만 매깁니다.</p>' +
       '<div class="tw"><table class="t sticky"><thead><tr><th>번호</th><th>신분</th><th>순위</th><th class="stick">성명</th><th>교과</th><th>상태</th><th>방식</th><th>가. 학습지도</th><th>나. 생활지도</th><th>다. 전문성개발</th><th>라. 담당업무</th><th>총점</th><th>검증</th><th>조정</th><th></th></tr></thead><tbody>' +
       (rows || '<tr><td colspan="15" class="muted">해당 교사가 없습니다.</td></tr>') + '</tbody></table></div></div>';
   }
@@ -1256,7 +1256,7 @@ var Hwpx = (function () {
     var html = '<h3>' + esc(t.name) + ' <span class="muted small">' + esc(t.subject) + ' · ' + (MODE_LONG[s.mode] || '') + ' · ' + esc(s.status) + ' ' + esc(s.savedAt || '') + '</span></h3>' +
       (ref.note ? '<div class="notice amber">' + esc(ref.note) + '</div>' : '') +
       '<div class="kv small" style="margin-bottom:8px"><div>교사 입력: 외부공개 ' + val(ti.openCount) + '회 · 연수 ' + val(ti.trainingHours) + '시간 · 표창 ' + val(ti.award1) + '/' + val(ti.award2) + '건</div>' +
-      '<div>관리자 확인값: 외부공개 ' + (Calc.has(chk.openCount) ? chk.openCount + '회' : '미입력') + ' · 연수 ' + (Calc.has(chk.trainingHours) ? chk.trainingHours + '시간' : '미입력') + ' · 표창 ' + (Calc.has(chk.award1) || Calc.has(chk.award2) ? val(chk.award1) + '/' + val(chk.award2) + '건' : '미입력') + '</div>' +
+      '<div>위원회 확인값: 외부공개 ' + (Calc.has(chk.openCount) ? chk.openCount + '회' : '미입력') + ' · 연수 ' + (Calc.has(chk.trainingHours) ? chk.trainingHours + '시간' : '미입력') + ' · 표창 ' + (Calc.has(chk.award1) || Calc.has(chk.award2) ? val(chk.award1) + '/' + val(chk.award2) + '건' : '미입력') + '</div>' +
       '<div>마지막 검증: ' + (ver ? esc(ver.verifiedAt) : '없음') + '</div></div>' +
       '<div class="tw"><table class="t"><thead><tr><th>항목</th><th>교사 점수</th><th>기준 점수</th><th>검증</th><th>교사 근거</th><th>기준 근거</th><th>조정 점수</th></tr></thead><tbody>' + rows +
       sumRow('가. 학습지도 소계', 'ga') + sumRow('나. 생활지도 소계', 'na') + sumRow('다. 전문성개발 소계', 'da') + sumRow('라. 담당업무 소계', 'ra') + sumRow('총점', 'total') + '</tbody></table></div>' +
@@ -1285,7 +1285,7 @@ var Hwpx = (function () {
       '<li>입력 방식, 점수, 근거, 입력값과 검증 결과가 함께 삭제되며 되돌릴 수 없습니다.</li>' +
       '<li>교사 명단, 인증번호, 기준자료는 그대로 남습니다.</li>' +
       '<li>교사는 같은 인증번호로 다시 들어와 처음부터 입력·제출할 수 있습니다.</li></ul>' +
-      (hasAdj ? '<label class="small"><input type="checkbox" id="del-adj"> 관리자 조정 점수와 사유도 함께 삭제</label>' : '') +
+      (hasAdj ? '<label class="small"><input type="checkbox" id="del-adj"> 위원회 조정 점수와 사유도 함께 삭제</label>' : '') +
       '<label class="f" style="margin-top:12px"><span>확인을 위해 교사 성명을 입력해 주십시오.</span><input type="text" id="del-name" class="w100" autocomplete="off"></label>' +
       '<div class="foot"><button class="btn" data-act="closeModal">취소</button><button class="btn primary" id="del-ok" style="background:#b42318;border-color:#b42318">삭제</button></div>');
     m.querySelector('#del-ok').addEventListener('click', function () {
@@ -1519,8 +1519,8 @@ var Hwpx = (function () {
       '· 창체·자유학기 버튼을 누르면 프로그램별로 종류, 학년, 시간, <b>팀티칭 1/3 이상 여부</b>를 지정할 수 있습니다. 팀티칭 프로그램은 지도 개수에서 제외되고, 시수는 1/2만 인정됩니다.<br>' +
       '· <b>교과 수업의 팀티칭</b>(에코 수업 등)은 같은 창에서 종류를 \'교과 수업\'으로 골라 입력합니다. 시수는 1/2만 인정되고, 그 학년은 다학년 교과지도에서 제외됩니다.<br>' +
       '· 근무하지 않은 학기는 근무 체크를 해제하십시오(해당 학기 제외 후 계산). 학교 평균 시수(사서 등 평균 시수 인정 교사용): <b>' + fmt(eff.avgHours) + '시간</b>' + (Calc.has(A.D.settings.avgHoursManual) && A.D.settings.avgHoursManual !== '' ? ' (설정에서 지정)' : ' (자동 계산)') + '<br>' +
-      '· 확인값(외부공개 횟수, 연수 시간)은 검증할 때 교사 입력값과 비교하는 관리자 기준입니다. 비워 두면 해당 항목은 "기준 없음"으로 표시됩니다.</div>' +
-      '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">유형</th><th colspan="5">1학기</th><th colspan="5">2학기</th><th rowspan="2">평균 시수 인정</th><th rowspan="2">보건 건수</th><th colspan="3">가. 학습지도 자동 계산</th><th colspan="2">관리자 확인값</th><th rowspan="2">비고</th></tr>' +
+      '· 확인값(외부공개 횟수, 연수 시간)은 검증할 때 교사 입력값과 비교하는 위원회 기준입니다. 비워 두면 해당 항목은 "기준 없음"으로 표시됩니다.</div>' +
+      '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">유형</th><th colspan="5">1학기</th><th colspan="5">2학기</th><th rowspan="2">평균 시수 인정</th><th rowspan="2">보건 건수</th><th colspan="3">가. 학습지도 자동 계산</th><th colspan="2">위원회 확인값</th><th rowspan="2">비고</th></tr>' +
       '<tr>' + sh + sh + '<th>주당<br>수업시수</th><th>다학년<br>교과지도</th><th>창체·자유학기<br>지도</th><th>외부공개(회)</th><th>연수(시간)</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
   BIND.aRef = function (el) {
@@ -1622,10 +1622,10 @@ var Hwpx = (function () {
     var hv = function (no, label, short) { return '<th class="v" title="' + esc(no + ' ' + label) + '"><span class="vt">' + no + ' ' + esc(short || label) + '</span></th>'; };
     return '<div class="card"><h2>담당업무 매트릭스: 나. 생활지도 · 라. 담당업무</h2>' +
       '<div class="notice small">· 행은 교사, 열은 라. 담당업무 항목입니다. 체크하거나 횟수·건수를 입력하면 [라. 담당업무 - 업무곤란도] 점수가 자동 계산됩니다(3점 상한).<br>' +
-      '· ⑦~⑩ 위원회는 참석 횟수를 입력합니다(1회 0.02점, 위원회별 최대 0.2점). ⑪ 표창은 교사가 평가표에 직접 입력하며, 여기에는 검증용 관리자 확인 건수를 수기로 입력합니다.<br>' +
+      '· ⑦~⑩ 위원회는 참석 횟수를 입력합니다(1회 0.02점, 위원회별 최대 0.2점). ⑪ 표창은 교사가 평가표에 직접 입력하며, 여기에는 검증용 위원회 확인 건수를 수기로 입력합니다.<br>' +
       '· ① 예산 지원 사업 목록은 설정 메뉴에서 추가하거나 뺄 수 있습니다. 열 제목에 마우스를 올리면 항목의 전체 이름이 보입니다.</div>' +
       '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">나. 생활지도 -<br>생활지도 곤란도<br>구분</th><th rowspan="2">라. 담당업무 -<br>업무추진<br>역할</th>' +
-      (bl.length ? '<th colspan="' + bl.length + '">① 예산 지원 사업 실무(0.1)</th>' : '') + '<th colspan="5">②~⑥ 해당 여부(0.2)</th><th colspan="4">⑦~⑩ 참석 횟수</th><th colspan="2">⑪ 표창(관리자 확인)</th><th rowspan="2" class="v" title="⑫ 업무곤란도 부장 및 담당업무(1점): 교무기획부장, 교육연구부장, 학생생활교육부장, 학폭책임교사, 학교생활기록부"><span class="vt">⑫ 부장·고정업무</span></th><th colspan="3">계산 결과</th></tr><tr>' +
+      (bl.length ? '<th colspan="' + bl.length + '">① 예산 지원 사업 실무(0.1)</th>' : '') + '<th colspan="5">②~⑥ 해당 여부(0.2)</th><th colspan="4">⑦~⑩ 참석 횟수</th><th colspan="2">⑪ 표창(위원회 확인)</th><th rowspan="2" class="v" title="⑫ 업무곤란도 부장 및 담당업무(1점): 교무기획부장, 교육연구부장, 학생생활교육부장, 학폭책임교사, 학교생활기록부"><span class="vt">⑫ 부장·고정업무</span></th><th colspan="3">계산 결과</th></tr><tr>' +
       bl.map(function (n) { return hv('①', n); }).join('') + Calc.M_FLAGS.map(function (x) { return hv(x.no, x.label, x.short); }).join('') + Calc.M_COUNTS.map(function (x) { return hv(x.no, x.label, x.short); }).join('') +
       hv('⑪', '학생지도에 의한 지도교사 표창(건)', '학생지도 표창') + hv('⑪', '교육활동에 따른 학교 표창 업무담당(건)', '교육활동 표창') + '<th>라. 담당업무 -<br>업무곤란도</th><th>나. 생활지도 -<br>생활지도 곤란도</th><th>라. 담당업무 -<br>업무추진</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
@@ -1653,7 +1653,7 @@ var Hwpx = (function () {
       '<div class="row"><input type="text" id="bud-new" placeholder="사업명" style="width:240px"><button class="btn sm" data-act="aBudAdd">추가</button></div>' +
       '<p class="muted small" style="margin:8px 0 0">사업을 추가하거나 뺀 뒤에는 아래 \'설정 저장\'을 눌러야 반영됩니다.</p>' +
       '<div class="savebar"><button class="btn primary" data-act="aSetSave">설정 저장</button></div></div>' +
-      '<div class="card"><h2>관리자 비밀번호</h2><button class="btn" data-act="aPw">비밀번호 변경</button></div>';
+      '<div class="card"><h2>위원회 비밀번호</h2><button class="btn" data-act="aPw">비밀번호 변경</button></div>';
   }
   BIND.aSet = function (el) { A.S[el.dataset.k] = el.value; };
   ACT.aBudAdd = function () {
@@ -1683,7 +1683,7 @@ var Hwpx = (function () {
   };
   ACT.aPw = function () { pwModal(false); };
   function pwModal(force) {
-    modal('<h3>관리자 비밀번호 변경</h3>' + (force ? '<div class="notice amber">초기 비밀번호를 사용 중입니다. 보안을 위해 지금 변경해 주십시오.</div>' : '') +
+    modal('<h3>위원회 비밀번호 변경</h3>' + (force ? '<div class="notice amber">초기 비밀번호를 사용 중입니다. 보안을 위해 지금 변경해 주십시오.</div>' : '') +
       '<label class="f"><span>현재 비밀번호</span><input type="password" id="pw-old" class="w100"></label>' +
       '<label class="f"><span>새 비밀번호(8자 이상)</span><input type="password" id="pw-new" class="w100"></label>' +
       '<label class="f"><span>새 비밀번호 확인</span><input type="password" id="pw-new2" class="w100"></label>' +
