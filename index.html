@@ -1172,12 +1172,81 @@ var Hwpx = (function () {
         l.map(function (e) { return '<button class="linkbtn" data-act="aEvGet" data-id="' + esc(e.id) + '">' + esc(e.name) + '</button> <span class="muted">' + fsize(e.size) + ' · ' + esc(e.uploadedAt) + '</span>'; }).join('<br>') + '</div>';
     }).join('');
   }
+  /* 증빙 파일 이름: 형식은 이 브라우저에 기억(기본: {항목}_{성명}) */
+  var EV_LABEL = { d: '연수 이수', r1: '업무곤란도' };
+  var EV_PATTERN_DEFAULT = '{항목}_{성명}';
+  function evPattern() { try { return localStorage.getItem('dameon_ev_pattern') || EV_PATTERN_DEFAULT; } catch (e) { return EV_PATTERN_DEFAULT; } }
+  function evSetPattern(v) { try { localStorage.setItem('dameon_ev_pattern', v); } catch (e) { /* 저장 불가 시 무시 */ } }
+  function safeFile(s) { return String(s).replace(/[\\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim() || '증빙'; }
+  function evFileName(e, pattern) {
+    var t = tById(e.teacherId) || { name: '(삭제된 교사)', subject: '', order: 0 };
+    var ext = (String(e.name).split('.').pop() || '').toLowerCase();
+    var base = (pattern || evPattern()).replace(/\{항목\}/g, EV_LABEL[e.item] || e.item).replace(/\{성명\}/g, t.name)
+      .replace(/\{교과\}/g, t.subject || '').replace(/\{신분\}/g, A.D.refs[e.teacherId] ? empOf(e.teacherId) : '')
+      .replace(/\{순서\}/g, ('0' + (t.order || 0)).slice(-2)).replace(/\{원래이름\}/g, String(e.name).replace(/\.[^.]+$/, ''));
+    return safeFile(base) + (ext ? '.' + ext : '');
+  }
+  function uniqueName(name, seen) {
+    if (!seen[name]) { seen[name] = 1; return name; }
+    var m = name.match(/^(.*?)(\.[^.]+)?$/), k = 2, n;
+    do { n = m[1] + '(' + (k++) + ')' + (m[2] || ''); } while (seen[n]);
+    seen[n] = 1; return n;
+  }
   ACT.aEvGet = function (b) {
+    var e = (A.D.evid || []).filter(function (x) { return x.id === b.dataset.id; })[0];
     busy(true, '파일을 내려받는 중입니다…');
     api('adminGetEvidence', A.token, b.dataset.id).then(function (r) {
       busy(false);
-      deliver(b64ToBlob(r.b64, r.mime), r.name);
+      deliver(b64ToBlob(r.b64, r.mime), e ? evFileName(e) : r.name);
     }).catch(fail);
+  };
+  ACT.aEvBulk = function () {
+    var all = A.D.evid || [];
+    if (!all.length) return toast('올라온 증빙 파일이 없습니다.', true);
+    var m = modal('<h3>증빙 파일 일괄 내려받기</h3>' +
+      '<label class="f"><span>파일 이름 형식</span><input type="text" id="evb-pat" class="w100" value="' + esc(evPattern()) + '"></label>' +
+      '<p class="muted small" style="margin-top:-4px">쓸 수 있는 값: {항목} (연수 이수 / 업무곤란도), {성명}, {교과}, {신분}, {순서}, {원래이름}<br>예: {항목}_{성명} → <b>연수 이수_변민균.pdf</b>, <b>업무곤란도_변민균.jpg</b>. 이름이 겹치면 (2), (3)이 붙습니다.</p>' +
+      '<div class="grid2"><label class="f"><span>대상</span><select id="evb-who"><option value="all">전체</option><option value="정교사">정교사</option><option value="기간제">기간제</option></select></label>' +
+      '<label class="f"><span>항목</span><select id="evb-item"><option value="all">전체</option><option value="d">연수 이수</option><option value="r1">업무곤란도</option></select></label>' +
+      '<label class="f"><span>ZIP 안의 폴더 구성</span><select id="evb-dir"><option value="none">폴더 없이 한곳에</option><option value="item">항목별 폴더</option><option value="teacher">교사별 폴더</option></select></label></div>' +
+      '<p class="small" id="evb-preview"></p>' +
+      '<div class="foot"><button class="btn" data-act="closeModal">취소</button><button class="btn primary" id="evb-ok">내려받기</button></div>');
+    var pick = function () {
+      var who = m.querySelector('#evb-who').value, item = m.querySelector('#evb-item').value;
+      return all.filter(function (e) { return tById(e.teacherId) && (who === 'all' || empOf(e.teacherId) === who) && (item === 'all' || e.item === item); });
+    };
+    var preview = function () {
+      var l = pick(), pat = m.querySelector('#evb-pat').value || EV_PATTERN_DEFAULT, total = 0;
+      l.forEach(function (e) { total += e.size; });
+      m.querySelector('#evb-preview').innerHTML = '대상 <b>' + l.length + '개</b> 파일(' + fsize(total) + ')' + (l.length ? ' · 예: ' + esc(evFileName(l[0], pat)) : '');
+    };
+    ['#evb-pat', '#evb-who', '#evb-item'].forEach(function (q) { m.querySelector(q).addEventListener('input', preview); m.querySelector(q).addEventListener('change', preview); });
+    preview();
+    m.querySelector('#evb-ok').addEventListener('click', function () {
+      var list = pick(), pat = m.querySelector('#evb-pat').value.trim() || EV_PATTERN_DEFAULT, dir = m.querySelector('#evb-dir').value;
+      if (!list.length) return toast('내려받을 파일이 없습니다.', true);
+      evSetPattern(pat);
+      closeModal();
+      var zip = new JSZip(), seen = {}, fails = [], i = 0;
+      var step = function () {
+        if (i >= list.length) return Promise.resolve();
+        var e = list[i++];
+        busy(true, '증빙 파일 ' + i + '/' + list.length + ' 내려받는 중입니다…');
+        return api('adminGetEvidence', A.token, e.id).then(function (r) {
+          var t = tById(e.teacherId);
+          var folder = dir === 'item' ? (EV_LABEL[e.item] + '/') : dir === 'teacher' ? safeFile(('0' + (t.order || 0)).slice(-2) + '_' + t.name) + '/' : '';
+          zip.file(uniqueName(folder + evFileName(e, pat), seen), r.b64, { base64: true, compression: 'STORE' });
+        }, function (err) { fails.push((tById(e.teacherId) || {}).name + ' ' + e.name + ': ' + (err && err.message || err)); }).then(step);
+      };
+      step().then(function () {
+        busy(true, 'ZIP 파일을 만드는 중입니다…');
+        return zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
+      }).then(function (blob) {
+        busy(false);
+        deliver(blob, (A.D.settings.year || '') + '_다면평가_증빙(' + (list.length - fails.length) + '개).zip');
+        if (fails.length) toast('일부 파일을 받지 못했습니다: ' + fails.join(' / '), true, null, 12000);
+      }).catch(fail);
+    });
   };
   function rankMap() {
     var D = A.D, groups = {}, m = {}, tie = {}, n = {};
@@ -1260,6 +1329,7 @@ var Hwpx = (function () {
       '<div class="row" style="margin-bottom:12px"><button class="btn primary" data-act="aVerifyAll">제출자 전체 검증</button>' +
       '<div class="spacer"></div><label class="small"><input type="checkbox" data-bind="aDraft"' + (A.includeDraft ? ' checked' : '') + '> 임시저장도 포함</label>' +
       '<button class="btn" data-act="aRankCsv">순위표 내려받기(CSV)</button>' +
+      '<button class="btn" data-act="aEvBulk">증빙 일괄 내려받기(ZIP)</button>' +
       '<button class="btn" data-act="aDownload" data-v="zip">교사별 HWPX 내려받기(ZIP)</button><button class="btn" data-act="aDownload" data-v="one">통합 HWPX 내려받기(1개 파일)</button></div>' +
       rankNote +
       '<p class="muted small">점수는 위원회 조정 점수를 우선 반영한 최종 점수입니다. 내려받는 평가표에도 최종 점수가 들어갑니다. 순위는 제출 완료자만 매깁니다.</p>' +
