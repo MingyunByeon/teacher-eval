@@ -96,6 +96,11 @@ textarea.basis-in { min-height: 44px; font-size: 13.5px; line-height: 1.8; overf
 .srcbadge { margin-top: 6px; min-height: 4px; }
 @media (max-width: 720px) { .autobar { flex-direction: column; align-items: stretch; } }
 .savebar { display: flex; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line2); }
+.evid { margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; background: #fafbfc; }
+.evhead { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.evrow { font-size: 13px; line-height: 1.7; word-break: break-all; }
+.evbtn { margin-top: 6px; display: inline-block; }
+.linkbtn.danger { color: var(--warn); }
 .inrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 table.form.mobile { min-width: 0; width: 100%; table-layout: fixed; }
 table.form.mobile td { word-break: keep-all; overflow-wrap: anywhere; }
@@ -671,6 +676,22 @@ var Hwpx = (function () {
   function nowKst() {
     return new Date(Date.now() + 9 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 19);
   }
+  var EVID_ITEMS = { d: '연수이수', r1: '업무곤란도' };
+  var EVID_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'hwp', 'hwpx'];
+  function fsize(n) { return n >= 1048576 ? (Math.round(n / 104857.6) / 10) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+  function fileToB64(file) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () { res(String(r.result).split(',')[1] || ''); };
+      r.onerror = function () { rej(new Error('파일을 읽지 못했습니다.')); };
+      r.readAsDataURL(file);
+    });
+  }
+  function b64ToBlob(b64, mime) {
+    var bin = atob(b64), n = bin.length, u = new Uint8Array(n);
+    for (var i = 0; i < n; i++) u[i] = bin.charCodeAt(i);
+    return new Blob([u], { type: mime || 'application/octet-stream' });
+  }
   function getPath(o, p) { return p.split('.').reduce(function (x, k) { return x == null ? x : x[k]; }, o); }
   function setPath(o, p, v) {
     var ks = p.split('.'), x = o;
@@ -899,8 +920,44 @@ var Hwpx = (function () {
     if (k === 'd') extra = '<div class="inrow">연수 이수 ' + tIn('trainingHours', 0.5, ro) + ' 시간 <span class="muted small">(나이스 연수이수 실적 기준)</span></div>';
     if (k === 'r1') extra = '<div class="inrow">⑪ 학생지도 표창 ' + tIn('award1', 1, ro) + ' 건</div><div class="inrow">⑪ 교육활동 표창(업무담당) ' + tIn('award2', 1, ro) + ' 건</div>';
     var reset = (T.b.ref && !ro) ? '<button class="linkbtn" data-act="tAutoOne" data-k="' + k + '">이 항목만 자동 입력</button>' : '';
-    return '<td class="bs">' + extra + '<textarea class="basis-in" data-bind="tBasis" data-live="1" data-k="' + k + '" placeholder="산출 근거를 적어 주십시오.(선택)"' + (ro ? ' disabled' : '') + '>' + esc(T.form.basis[k] || '') + '</textarea>' + reset + '</td>';
+    var ev = EVID_ITEMS[k] ? '<div class="evid" id="ev-' + k + '">' + evidHtml(k, ro) + '</div>' : '';
+    return '<td class="bs">' + extra + '<textarea class="basis-in" data-bind="tBasis" data-live="1" data-k="' + k + '" placeholder="산출 근거를 적어 주십시오.(선택)"' + (ro ? ' disabled' : '') + '>' + esc(T.form.basis[k] || '') + '</textarea>' + reset + ev + '</td>';
   }
+  function evidHtml(k, ro) {
+    var list = (T.b.evidence || []).filter(function (e) { return e.item === k; });
+    var rows = list.map(function (e) {
+      return '<div class="evrow"><span class="evname">' + esc(e.name) + '</span> <span class="muted small">' + fsize(e.size) + '</span>' +
+        (ro ? '' : ' <button class="linkbtn danger" data-act="tEvDel" data-id="' + esc(e.id) + '">삭제</button>') + '</div>';
+    }).join('');
+    return '<div class="evhead">증빙 파일 <span class="muted small">(선택 · 종이 제출 가능)</span></div>' + (rows || '<div class="muted small">올린 파일이 없습니다.</div>') +
+      (ro ? '' : '<label class="btn sm evbtn">파일 올리기<input type="file" hidden accept=".pdf,.jpg,.jpeg,.png,.hwp,.hwpx" data-bind="tEvUp" data-k="' + k + '"></label>' +
+        '<span class="muted small"> PDF·JPG·PNG·HWP·HWPX, 파일당 10MB 이하</span>');
+  }
+  function evidRefresh() {
+    Object.keys(EVID_ITEMS).forEach(function (k) { var e = document.getElementById('ev-' + k); if (e) e.innerHTML = evidHtml(k, T.b.closed); });
+  }
+  BIND.tEvUp = function (el) {
+    var file = el.files && el.files[0], k = el.dataset.k;
+    el.value = '';
+    if (!file) return;
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (EVID_EXT.indexOf(ext) < 0) return toast('PDF, JPG, PNG, HWP, HWPX 파일만 올릴 수 있습니다.', true);
+    if (file.size > 10 * 1024 * 1024) return toast('파일 하나는 10MB 이하여야 합니다. (선택한 파일: ' + fsize(file.size) + ')', true);
+    if (!file.size) return toast('빈 파일은 올릴 수 없습니다.', true);
+    busy(true, '증빙 파일을 올리는 중입니다…');
+    fileToB64(file).then(function (b64) { return api('teacherUploadEvidence', T.token, k, file.name, b64); })
+      .then(function (list) { busy(false); T.b.evidence = list; evidRefresh(); toast('증빙 파일을 올렸습니다: ' + file.name); })
+      .catch(fail);
+  };
+  ACT.tEvDel = function (b) {
+    var id = b.dataset.id, e = (T.b.evidence || []).filter(function (x) { return x.id === id; })[0];
+    if (!e) return;
+    confirmBox('증빙 파일 <b>' + esc(e.name) + '</b>을(를) 삭제하시겠습니까?', '삭제').then(function (ok) {
+      if (!ok) return;
+      busy(true);
+      api('teacherDeleteEvidence', T.token, id).then(function (list) { busy(false); T.b.evidence = list; evidRefresh(); toast('삭제했습니다.'); }).catch(fail);
+    });
+  };
   function fitArea(el) { if (!el) return; el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
 
   /* 교사 입력값 → 해당 항목. 자동 상태인 항목만 다시 계산 */
@@ -1104,6 +1161,24 @@ var Hwpx = (function () {
   }
   /* 제출 완료자 최종 총점 기준 순위(동점은 같은 순위: 1, 2, 2, 4 …) */
   /* 제출 완료자 최종 총점 기준 순위. 정교사·기간제를 따로 매김(동점은 같은 순위: 1, 2, 2, 4 …) */
+  function evCount(id) { return (A.D.evid || []).filter(function (e) { return e.teacherId === id; }).length; }
+  function adminEvidHtml(id) {
+    var list = (A.D.evid || []).filter(function (e) { return e.teacherId === id; });
+    if (!list.length) return '<p class="muted small">올린 증빙 파일이 없습니다. 종이로 제출했을 수 있습니다.</p>';
+    return Object.keys(EVID_ITEMS).map(function (k) {
+      var l = list.filter(function (e) { return e.item === k; });
+      if (!l.length) return '';
+      return '<div class="small" style="margin-bottom:6px"><b>' + (k === 'd' ? '다. 전문성개발 - 연수이수' : '라. 담당업무 - 업무곤란도') + '</b><br>' +
+        l.map(function (e) { return '<button class="linkbtn" data-act="aEvGet" data-id="' + esc(e.id) + '">' + esc(e.name) + '</button> <span class="muted">' + fsize(e.size) + ' · ' + esc(e.uploadedAt) + '</span>'; }).join('<br>') + '</div>';
+    }).join('');
+  }
+  ACT.aEvGet = function (b) {
+    busy(true, '파일을 내려받는 중입니다…');
+    api('adminGetEvidence', A.token, b.dataset.id).then(function (r) {
+      busy(false);
+      deliver(b64ToBlob(r.b64, r.mime), r.name);
+    }).catch(fail);
+  };
   function rankMap() {
     var D = A.D, groups = {}, m = {}, tie = {}, n = {};
     D.teachers.forEach(function (t) {
@@ -1162,6 +1237,7 @@ var Hwpx = (function () {
         '<td>' + (s ? MODE_SHORT[s.mode] || '' : '') + '</td>' + cell('ga') + cell('na') + cell('da') + cell('ra') +
         '<td><b>' + (fin ? fmt(fin.total) : '') + '</b></td><td>' + verState(t.id).html + '</td>' +
         '<td>' + (adj ? '<span class="badge info">조정</span>' : '') + '</td>' +
+        '<td>' + (evCount(t.id) ? '<span class="badge info">' + evCount(t.id) + '건</span>' : '<span class="muted">-</span>') + '</td>' +
         '<td>' + (s ? '<button class="btn sm" data-act="aDetail" data-id="' + t.id + '">상세·검증</button> <button class="btn sm danger" data-act="aSubDel" data-id="' + t.id + '">삭제</button>' : '') + '</td></tr>';
     }).join('');
     var fbtn = function (k, label, n) { return '<button class="tab' + (f === k ? ' on' : '') + '" data-act="aFilter" data-v="' + k + '">' + label + ' ' + n + '</button>'; };
@@ -1187,8 +1263,8 @@ var Hwpx = (function () {
       '<button class="btn" data-act="aDownload" data-v="zip">교사별 HWPX 내려받기(ZIP)</button><button class="btn" data-act="aDownload" data-v="one">통합 HWPX 내려받기(1개 파일)</button></div>' +
       rankNote +
       '<p class="muted small">점수는 위원회 조정 점수를 우선 반영한 최종 점수입니다. 내려받는 평가표에도 최종 점수가 들어갑니다. 순위는 제출 완료자만 매깁니다.</p>' +
-      '<div class="tw"><table class="t sticky"><thead><tr><th>번호</th><th>신분</th><th>순위</th><th class="stick">성명</th><th>교과</th><th>상태</th><th>방식</th><th>가. 학습지도</th><th>나. 생활지도</th><th>다. 전문성개발</th><th>라. 담당업무</th><th>총점</th><th>검증</th><th>조정</th><th></th></tr></thead><tbody>' +
-      (rows || '<tr><td colspan="15" class="muted">해당 교사가 없습니다.</td></tr>') + '</tbody></table></div></div>';
+      '<div class="tw"><table class="t sticky"><thead><tr><th>번호</th><th>신분</th><th>순위</th><th class="stick">성명</th><th>교과</th><th>상태</th><th>방식</th><th>가. 학습지도</th><th>나. 생활지도</th><th>다. 전문성개발</th><th>라. 담당업무</th><th>총점</th><th>검증</th><th>조정</th><th>증빙</th><th></th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="16" class="muted">해당 교사가 없습니다.</td></tr>') + '</tbody></table></div></div>';
   }
   ACT.aSort = function (b) { A.sort = b.dataset.v; render(); };
   ACT.aEmp = function (b) { A.emp = b.dataset.v; render(); };
@@ -1261,6 +1337,7 @@ var Hwpx = (function () {
       '<div class="tw"><table class="t"><thead><tr><th>항목</th><th>교사 점수</th><th>기준 점수</th><th>검증</th><th>교사 근거</th><th>기준 근거</th><th>조정 점수</th></tr></thead><tbody>' + rows +
       sumRow('가. 학습지도 소계', 'ga') + sumRow('나. 생활지도 소계', 'na') + sumRow('다. 전문성개발 소계', 'da') + sumRow('라. 담당업무 소계', 'ra') + sumRow('총점', 'total') + '</tbody></table></div>' +
       '<p class="muted small">조정 점수를 입력한 항목은 교사 점수 대신 최종 점수와 내려받는 평가표에 반영됩니다(근무 월수 환산 등). 비워 두면 교사 점수를 사용합니다. 마지막 열의 소계는 최종 점수입니다.</p>' +
+      '<h3 style="margin-top:14px">증빙 파일</h3>' + adminEvidHtml(id) +
       '<label class="f"><span>조정 사유(메모)</span><textarea id="adj-memo">' + esc(adj.memo || '') + '</textarea></label>' +
       '<div class="foot"><button class="btn danger" data-act="aSubDel" data-id="' + id + '">제출 내용 삭제</button><div class="spacer"></div><button class="btn" data-act="aOne" data-id="' + id + '">이 교사 HWPX</button><button class="btn" data-act="aAdjSave" data-id="' + id + '">조정 저장</button>' +
       '<button class="btn primary" data-act="aVerifyOne" data-id="' + id + '">검증 결과 저장</button><button class="btn" data-act="closeModal">닫기</button></div>';
