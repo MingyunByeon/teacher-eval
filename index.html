@@ -101,6 +101,8 @@ textarea.basis-in { min-height: 44px; font-size: 13.5px; line-height: 1.8; overf
 .evrow { font-size: 13px; line-height: 1.7; word-break: break-all; }
 .evbtn { margin-top: 6px; display: inline-block; }
 .linkbtn.danger { color: var(--warn); }
+.ptmark { font-size: 11px; font-weight: 700; color: var(--amber); line-height: 1.2; }
+table.t td.left { text-align: left; }
 .inrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 table.form.mobile { min-width: 0; width: 100%; table-layout: fixed; }
 table.form.mobile td { word-break: keep-all; overflow-wrap: anywhere; }
@@ -341,7 +343,10 @@ var Calc = (function () {
     var r1 = 0, p4 = [];
     var bl = (m.budget || []);
     if (bl.length) { r1 += 0.1 * bl.length; p4.push('① 예산사업 ' + bl.length + '개 (' + bl.join(', ') + ') → ' + f(0.1 * bl.length)); }
-    M_FLAGS.forEach(function (x) { if (m[x.key]) { r1 += x.pt; p4.push(x.no + ' ' + x.label + ' → ' + x.pt); } });
+    var pts = m.pts || {};
+    var ptOf = function (key, def) { return has(pts[key]) ? Number(pts[key]) : def; };
+    var ptNote = function (key, def) { return has(pts[key]) && Number(pts[key]) !== def ? ' (위원회 지정, 기본 ' + def + ')' : ''; };
+    M_FLAGS.forEach(function (x) { if (m[x.key]) { var pt = ptOf(x.key, x.pt); r1 += pt; p4.push(x.no + ' ' + x.label + ' → ' + f(pt) + ptNote(x.key, x.pt)); } });
     M_COUNTS.forEach(function (x) {
       var c = num(m[x.key]);
       if (c > 0) { var pt = Math.min(0.2, r2(c * 0.02)); r1 += pt; p4.push(x.no + ' ' + x.label + ' ' + c + '회 → ' + f(pt)); }
@@ -349,7 +354,7 @@ var Calc = (function () {
     var a1 = num(inputs.award1), a2 = num(inputs.award2);
     if (a1) { r1 += 0.1 * a1; p4.push('⑪ 학생지도 표창 ' + a1 + '건 → ' + f(0.1 * a1)); }
     if (a2) { r1 += 0.1 * a2; p4.push('⑪ 교육활동 표창 업무담당 ' + a2 + '건 → ' + f(0.1 * a2)); }
-    if (m.fixed) { r1 += 1; p4.push('⑫ 업무곤란도 부장 및 담당업무 → 1'); }
+    if (m.fixed) { var fp = ptOf('fixed', 1); r1 += fp; p4.push('⑫ 업무곤란도 부장 및 담당업무 → ' + f(fp) + ptNote('fixed', 1)); }
     r1 = r2(r1);
     S.r1 = Math.min(3, r1);
     B.r1 = p4.length ? p4.join('\n') + '\n= 합계 ' + f(r1) + '점' + (r1 > 3 ? '\n→ 최대 3점 적용' : '') : '해당 없음 0점';
@@ -1757,13 +1762,16 @@ var Hwpx = (function () {
         return '<select data-bind="aRef" data-id="' + id + '" data-path="' + path + '" data-type="text">' + opts.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>';
       };
       var c = Calc.compute(r, eff, matrixAwards(r));
-      return '<tr><td class="stick"><b>' + esc(t.name) + '</b><div class="muted small">' + esc(t.subject) + '</div></td>' +
+      var pts = m.pts || {}, npt = Object.keys(pts).filter(function (k) { return Calc.has(pts[k]); }).length;
+      var mark = function (key) { return Calc.has(pts[key]) ? '<div class="ptmark" title="위원회 지정 점수">' + fmt(pts[key]) + '점</div>' : ''; };
+      return '<tr><td class="stick"><b>' + esc(t.name) + '</b><div class="muted small">' + esc(t.subject) + '</div>' +
+        '<button class="linkbtn" data-act="aPts" data-id="' + id + '">점수 지정' + (npt ? ' (' + npt + ')' : '') + '</button></td>' +
         '<td>' + sel('lifeRole', Calc.LIFE_OPTIONS, r.lifeRole) + '</td><td>' + sel('role', Calc.ROLES, r.role) + '</td>' +
         bl.map(function (name) { return '<td class="c"><input type="checkbox" data-bind="aBudget" data-id="' + id + '" data-name="' + esc(name) + '"' + ((m.budget || []).indexOf(name) >= 0 ? ' checked' : '') + '></td>'; }).join('') +
-        Calc.M_FLAGS.map(function (x) { return '<td class="c">' + refInput(id, 'matrix.' + x.key, 'bool', m[x.key]) + '</td>'; }).join('') +
+        Calc.M_FLAGS.map(function (x) { return '<td class="c">' + refInput(id, 'matrix.' + x.key, 'bool', m[x.key]) + mark(x.key) + '</td>'; }).join('') +
         Calc.M_COUNTS.map(function (x) { return '<td>' + refInput(id, 'matrix.' + x.key, 'num', m[x.key], 52, ' step="1"') + '</td>'; }).join('') +
         '<td>' + refInput(id, 'check.award1', 'numnull', r.check.award1, 52, ' step="1"') + '</td><td>' + refInput(id, 'check.award2', 'numnull', r.check.award2, 52, ' step="1"') + '</td>' +
-        '<td class="c">' + refInput(id, 'matrix.fixed', 'bool', m.fixed) + '</td>' +
+        '<td class="c">' + refInput(id, 'matrix.fixed', 'bool', m.fixed) + mark('fixed') + '</td>' +
         '<td class="num" id="mr1-' + id + '" title="' + esc(c.basis.r1) + '"><b>' + fmt(c.scores.r1) + '</b></td><td class="num" id="mn-' + id + '">' + fmt(c.scores.n) + '</td><td class="num" id="mr2-' + id + '">' + fmt(c.scores.r2) + '</td></tr>';
     }).join('');
     var hv = function (no, label, short) { return '<th class="v" title="' + esc(no + ' ' + label) + '"><span class="vt">' + no + ' ' + esc(short || label) + '</span></th>'; };
@@ -1771,12 +1779,41 @@ var Hwpx = (function () {
       '<div class="notice small">· 행은 교사, 열은 라. 담당업무 항목입니다. 체크하거나 횟수·건수를 입력하면 [라. 담당업무 - 업무곤란도] 점수가 자동 계산됩니다(3점 상한).<br>' +
       '· ① 예산 지원 사업 목록은 설정 메뉴에서 추가하거나 뺄 수 있습니다. 열 제목에 마우스를 올리면 항목의 전체 이름이 보입니다.<br>' +
       '· ⑦~⑩ 위원회는 참석 횟수를 입력합니다(1회 0.02점, 위원회별 최대 0.2점).<br>' +
-      '· ⑪ 표창은 교사가 평가표에 직접 입력하며, 여기에는 검증용 위원회 확인 건수를 수기로 입력합니다.</div>' +
+      '· ⑪ 표창은 교사가 평가표에 직접 입력하며, 여기에는 검증용 위원회 확인 건수를 수기로 입력합니다.<br>' +
+      '· 특정 교사에게 기본과 다른 점수를 줄 때는 성명 아래 <b>\'점수 지정\'</b>을 누릅니다(예: 교과부장 0.2 → 0.1). 지정한 칸에는 점수가 작게 표시됩니다.</div>' +
       '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">나. 생활지도 -<br>생활지도 곤란도<br>구분</th><th rowspan="2">라. 담당업무 -<br>업무추진<br>역할</th>' +
       (bl.length ? '<th colspan="' + bl.length + '">① 예산 지원 사업 실무(0.1)</th>' : '') + '<th colspan="5">②~⑥ 해당 여부(0.2)</th><th colspan="4">⑦~⑩ 참석 횟수</th><th colspan="2">⑪ 표창(위원회 확인)</th><th rowspan="2" class="v" title="⑫ 업무곤란도 부장 및 담당업무(1점): 교무기획부장, 교육연구부장, 학생생활교육부장, 학폭책임교사, 학교생활기록부"><span class="vt">⑫ 부장·고정업무</span></th><th colspan="3">계산 결과</th></tr><tr>' +
       bl.map(function (n) { return hv('①', n); }).join('') + Calc.M_FLAGS.map(function (x) { return hv(x.no, x.label, x.short); }).join('') + Calc.M_COUNTS.map(function (x) { return hv(x.no, x.label, x.short); }).join('') +
       hv('⑪', '학생지도에 의한 지도교사 표창(건)', '학생지도 표창') + hv('⑪', '교육활동에 따른 학교 표창 업무담당(건)', '교육활동 표창') + '<th>라. 담당업무 -<br>업무곤란도</th><th>나. 생활지도 -<br>생활지도 곤란도</th><th>라. 담당업무 -<br>업무추진</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
+  ACT.aPts = function (b) {
+    var id = b.dataset.id, t = tById(id), m = A.D.refs[id].matrix, pts = m.pts || {};
+    var defs = Calc.M_FLAGS.map(function (x) { return { key: x.key, label: x.no + ' ' + x.label, pt: x.pt }; })
+      .concat([{ key: 'fixed', label: '⑫ 업무곤란도 부장 및 담당업무', pt: 1 }]);
+    var md = modal('<h3>' + esc(t.name) + ' · 업무곤란도 점수 지정</h3>' +
+      '<p class="muted small">이 교사에게만 기본과 다른 점수를 줄 항목에 점수를 넣습니다. 비워 두면 기본 점수가 적용됩니다. 지정 점수는 매트릭스에서 체크된 경우에만 반영되며, 교사 화면 근거에도 "(위원회 지정, 기본 0.2)"처럼 표시됩니다.</p>' +
+      '<div class="tw"><table class="t"><thead><tr><th>항목</th><th>매트릭스 체크</th><th>기본 점수</th><th>지정 점수</th></tr></thead><tbody>' +
+      defs.map(function (d) {
+        return '<tr><td class="left">' + esc(d.label) + '</td><td>' + (m[d.key] ? '<span class="badge ok">체크됨</span>' : '<span class="muted">-</span>') + '</td><td>' + d.pt + '</td>' +
+          '<td><input type="number" step="0.01" min="0" style="width:80px;text-align:center" data-ptk="' + d.key + '" value="' + esc(val(pts[d.key])) + '" placeholder="' + d.pt + '"></td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<label class="f" style="margin-top:10px"><span>지정 사유(선택)</span><textarea id="pts-memo">' + esc(m.ptsMemo || '') + '</textarea></label>' +
+      '<div class="foot"><button class="btn" data-act="closeModal">취소</button><button class="btn primary" id="pts-ok">적용</button></div>');
+    md.querySelector('#pts-ok').addEventListener('click', function () {
+      var np = {}, bad = '';
+      md.querySelectorAll('[data-ptk]').forEach(function (el) {
+        if (el.value === '') return;
+        var v = Number(el.value);
+        if (isNaN(v) || v < 0 || v > 3) bad = '지정 점수는 0~3 사이로 입력해 주십시오.';
+        else np[el.dataset.ptk] = v;
+      });
+      if (bad) return toast(bad, true);
+      m.pts = np; m.ptsMemo = md.querySelector('#pts-memo').value;
+      A.dirty[id] = true;
+      closeModal(); render();
+      toast(t.name + ' 교사의 지정 점수를 적용했습니다. \'변경 내용 저장\'을 눌러 저장해 주십시오.', false, null, 6000);
+    });
+  };
   BIND.aBudget = function (el) {
     var r = A.D.refs[el.dataset.id], name = el.dataset.name;
     var b = (r.matrix.budget || []).filter(function (x) { return x !== name; });
