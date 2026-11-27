@@ -328,9 +328,9 @@ var Calc = (function () {
         if (act.length) items.push('창체·자유학기 ' + f(actH) + '시간: ' + act.map(function (p) { return progLabel(p, p.team ? '팀티칭' : '') + ' ' + f(num(p.hours)) + '시간'; }).join(', '));
         if (h.team) {
           var tn = progs.filter(function (p) { return p.team; }).map(shortName);
-          items.push('팀티칭 ' + f(h.team) + '시간(' + tn.join(', ') + ')은 1/2인 ' + f(h.team / 2) + '시간만 인정 → ' + f(h.recog) + '시간');
+          items.push('팀티칭 ' + f(h.team) + '시간(' + tn.join(', ') + ')은 1/2인 ' + f(h.team / 2) + '시간만 인정 → 실제 ' + f(h.raw) + '시간 − ' + f(h.team / 2) + '시간 = ' + f(h.recog) + '시간');
         }
-        parts.push({ head: semName(w.i) + ': 총 ' + f(h.raw) + '시간', items: items });
+        parts.push({ head: semName(w.i) + ': 수업시수 ' + f(h.recog) + '시간 인정', items: items });
       });
       var avg = tot / worked.length;
       S.g1 = hoursScore(avg);
