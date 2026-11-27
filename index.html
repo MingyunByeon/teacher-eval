@@ -364,10 +364,27 @@ var Calc = (function () {
     S.r2 = ROLE_SCORE[role] || 25;
     B.r2 = role + '교사 → ' + S.r2 + '점';
 
+    // 12개월 미만 근무: 주당 수업시수·생활지도 곤란도·업무추진 = 점수 × (근무 개월수/12)
+    var mf = monthFactor(ref);
+    if (mf < 1) {
+      var mm = Number(ref.months), floorOn = settings && String(settings.prorateFloor) === '1';
+      PRORATE.forEach(function (x) {
+        var orig = S[x.key], v = r2(orig * mm / 12), note = '';
+        if (floorOn && v < x.base) { note = ' → 기본점수 ' + x.base + '점 적용'; v = x.base; }
+        S[x.key] = v;
+        B[x.key] += '\n→ 근무 ' + mm + '개월 환산: ' + f(orig) + '점 × ' + mm + '/12 = ' + f(r2(orig * mm / 12)) + '점' + note;
+      });
+    }
+
     var sum = summarize(S);
     return { scores: S, basis: B, summary: sum };
   }
 
+  var PRORATE = [{ key: 'g1', base: 23.5 }, { key: 'n', base: 29 }, { key: 'r2', base: 25 }];
+  function monthFactor(ref) {
+    var m = Number(ref && ref.months);
+    return (ref && has(ref.months) && m > 0 && m < 12) ? m / 12 : 1;
+  }
   function summarize(S) {
     var v = function (k) { return num(S[k]); };
     var ga = Math.min(30, r2(v('g1') + v('g2') + v('g3') + v('g4')));
@@ -378,10 +395,16 @@ var Calc = (function () {
   }
 
   /* 직접 입력 값 점검: 범위를 벗어나면 경고 문구 */
-  function checkManual(key, val) {
+  function checkManual(key, val, ref, settings) {
     if (!has(val)) return '점수를 입력해 주십시오.';
     var it = ITEMS.filter(function (x) { return x.key === key; })[0];
     var v = Number(val);
+    var mf = monthFactor(ref), pr = PRORATE.filter(function (x) { return x.key === key; })[0];
+    if (mf < 1 && pr) {   // 근무 개월수 환산 대상: 범위만 점검
+      var floorOn = settings && String(settings.prorateFloor) === '1';
+      var lo = floorOn ? pr.base : r2(it.min * mf), hi = floorOn ? Math.max(pr.base, r2(it.max * mf)) : r2(it.max * mf);
+      return (v < lo - 0.001 || v > hi + 0.001) ? '근무 ' + ref.months + '개월 환산 범위(' + lo + '~' + hi + ')를 벗어났습니다.' : '';
+    }
     if (v < it.min || v > it.max) return '배점 범위(' + it.min + '~' + it.max + ')를 벗어났습니다.';
     if (key === 'g1' && Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) return '0.25점 단위로 입력해 주십시오.';
     if (key === 'n' && v !== 29 && v !== 30) return '29 또는 30점만 가능합니다.';
@@ -471,7 +494,7 @@ var Calc = (function () {
     ITEMS: ITEMS, KINDS: KINDS, SUBJECT_KIND: SUBJECT_KIND, COUNTED: COUNTED, LIFE_OPTIONS: LIFE_OPTIONS, ROLES: Object.keys(ROLE_SCORE), TYPES: TYPES,
     M_FLAGS: M_FLAGS, M_COUNTS: M_COUNTS,
     r2: r2, has: has, num: num, hoursScore: hoursScore, healthScore: healthScore, trainingScore: trainingScore,
-    semHours: semHours, schoolAvgHours: schoolAvgHours, compute: compute, summarize: summarize,
+    semHours: semHours, schoolAvgHours: schoolAvgHours, monthFactor: monthFactor, compute: compute, summarize: summarize,
     checkManual: checkManual, verify: verify, finalScores: finalScores, parsePrograms: parsePrograms, gradesFromText: gradesFromText
   };
 })();
@@ -870,6 +893,7 @@ var Hwpx = (function () {
       (s.deadline ? '<div>제출 마감<b>' + esc(String(s.deadline).replace('T', ' ')) + '</b></div>' : '') +
       '</div></div>';
     if (b.closed) head += '<div class="notice warn">제출 마감 시각이 지났습니다. 내용을 볼 수만 있습니다.</div>';
+    if (b.ref && Calc.monthFactor(b.ref) < 1) head += '<div class="notice amber">근무 개월수 <b>' + esc(b.ref.months) + '개월</b>이 적용되어, 주당 수업시수·생활지도 곤란도·업무추진 점수는 <b>(근무 개월수 ÷ 12)</b>를 곱해 계산됩니다.</div>';
     var ro = b.closed;
     var autoBar = '<div class="autobar">' +
       '<button class="btn primary" data-act="tAutoAll"' + (ro || !b.ref ? ' disabled' : '') + '>자동 입력</button>' +
@@ -988,7 +1012,7 @@ var Hwpx = (function () {
     Calc.ITEMS.forEach(function (it) {
       var k = it.key;
       var e = document.getElementById('er-' + k);
-      if (e) e.textContent = Calc.has(F.scores[k]) ? Calc.checkManual(k, F.scores[k]) : '';
+      if (e) e.textContent = Calc.has(F.scores[k]) ? Calc.checkManual(k, F.scores[k], T.b.ref, T.b.settings) : '';
       var bd = document.getElementById('sb-' + k);
       if (bd) bd.innerHTML = F.src[k] === 'auto' ? '<span class="badge info">자동</span>' : F.src[k] === 'edited' ? '<span class="badge amber">수정함</span>' : '';
     });
@@ -1038,9 +1062,9 @@ var Hwpx = (function () {
     var submit = b.dataset.v === '1', F = T.form;
     tRefresh();
     if (submit) {
-      var bad = Calc.ITEMS.filter(function (it) { return Calc.checkManual(it.key, F.scores[it.key]); });
+      var bad = Calc.ITEMS.filter(function (it) { return Calc.checkManual(it.key, F.scores[it.key], T.b.ref, T.b.settings); });
       if (bad.length) {
-        Calc.ITEMS.forEach(function (it) { var e = document.getElementById('er-' + it.key); if (e) e.textContent = Calc.checkManual(it.key, F.scores[it.key]); });
+        Calc.ITEMS.forEach(function (it) { var e = document.getElementById('er-' + it.key); if (e) e.textContent = Calc.checkManual(it.key, F.scores[it.key], T.b.ref, T.b.settings); });
         return toast('점수를 확인해 주십시오: ' + bad.map(function (x) { return x.label; }).join(', '), true);
       }
       if (!F.confirm) return toast("'위 내용이 사실임을 확인합니다'에 체크해 주십시오.", true);
@@ -1657,7 +1681,8 @@ var Hwpx = (function () {
           '<td><button class="btn sm" data-act="aProg" data-id="' + id + '" data-s="' + i + '" id="pg-' + id + '-' + i + '">' + progSummary(s) + '</button></td>';
       }).join('');
       var c = Calc.compute(r, eff, {});
-      return '<tr><td class="stick"><b>' + esc(t.name) + '</b><div class="muted small">' + esc(t.subject) + '</div></td><td class="c">' + esc(r.type) + '</td>' + semCells +
+      return '<tr><td class="stick"><b>' + esc(t.name) + '</b><div class="muted small">' + esc(t.subject) + '</div></td><td class="c">' + esc(r.type) + '</td>' +
+        '<td>' + refInput(id, 'months', 'numnull', r.months, 52, ' step="1" min="1" max="12" placeholder="12"') + '</td>' + semCells +
         '<td class="c">' + refInput(id, 'avgHours', 'bool', r.avgHours) + ' ' + refInput(id, 'avgReason', 'text', r.avgReason, 110, ' placeholder="사유"') + '</td>' +
         '<td>' + (r.type === '보건' ? refInput(id, 'healthCases', 'numnull', r.healthCases, 70, ' step="1"') : '<span class="muted">-</span>') + '</td>' +
         '<td class="num" id="cg1-' + id + '" title="' + esc(c.basis.g1) + '">' + fmt(c.scores.g1) + '</td><td class="num" id="cg2-' + id + '" title="' + esc(c.basis.g2) + '">' + fmt(c.scores.g2) + '</td><td class="num" id="cg3-' + id + '" title="' + esc(c.basis.g3) + '">' + fmt(c.scores.g3) + '</td>' +
@@ -1670,9 +1695,10 @@ var Hwpx = (function () {
       '· 담당 학년을 고치면 학년 수가 자동으로 다시 계산됩니다. 순회교사의 순회교 학년, 진로교사의 창체 진로 학년은 학년 수에서 직접 조정하십시오. 특수교사는 자동으로 2개 학년이 적용됩니다.<br>' +
       '· 창체·자유학기 버튼을 누르면 프로그램별로 종류, 학년, 시간, <b>팀티칭 1/3 이상 여부</b>를 지정할 수 있습니다. 팀티칭 프로그램은 지도 개수에서 제외되고, 시수는 1/2만 인정됩니다.<br>' +
       '· <b>교과 수업의 팀티칭</b>(에코 수업 등)은 같은 창에서 종류를 \'교과 수업\'으로 골라 입력합니다. 시수는 1/2만 인정되고, 그 학년은 다학년 교과지도에서 제외됩니다.<br>' +
+      '· <b>근무 개월수</b>: 1년을 모두 근무하지 않은 교사만 근무한 개월수(1~11)를 넣습니다. 비워 두면 12개월로 봅니다. 넣으면 주당 수업시수·생활지도 곤란도·업무추진 점수에 (개월수÷12)를 곱합니다. 육아휴직 기간은 평가표 지침에 따라 감점하지 않으므로 넣지 않습니다.<br>' +
       '· 근무하지 않은 학기는 근무 체크를 해제하십시오(해당 학기 제외 후 계산). 학교 평균 시수(사서 등 평균 시수 인정 교사용): <b>' + fmt(eff.avgHours) + '시간</b>' + (Calc.has(A.D.settings.avgHoursManual) && A.D.settings.avgHoursManual !== '' ? ' (설정에서 지정)' : ' (자동 계산)') + '<br>' +
       '· 확인값(외부공개 횟수, 연수 시간)은 검증할 때 교사 입력값과 비교하는 위원회 기준입니다. 비워 두면 해당 항목은 "기준 없음"으로 표시됩니다.</div>' +
-      '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">유형</th><th colspan="5">1학기</th><th colspan="5">2학기</th><th rowspan="2">평균 시수 인정</th><th rowspan="2">보건 건수</th><th colspan="3">가. 학습지도 자동 계산</th><th colspan="2">위원회 확인값</th><th rowspan="2">비고</th></tr>' +
+      '<div class="tw tall"><table class="t grid sticky"><thead><tr><th class="stick" rowspan="2">성명</th><th rowspan="2">유형</th><th rowspan="2">근무<br>개월수</th><th colspan="5">1학기</th><th colspan="5">2학기</th><th rowspan="2">평균 시수 인정</th><th rowspan="2">보건 건수</th><th colspan="3">가. 학습지도 자동 계산</th><th colspan="2">위원회 확인값</th><th rowspan="2">비고</th></tr>' +
       '<tr>' + sh + sh + '<th>주당<br>수업시수</th><th>다학년<br>교과지도</th><th>창체·자유학기<br>지도</th><th>외부공개(회)</th><th>연수(시간)</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
   BIND.aRef = function (el) {
@@ -1833,6 +1859,8 @@ var Hwpx = (function () {
       '<label class="f"><span>평가 기간</span><input type="text" class="w100" data-bind="aSet" data-k="period" value="' + esc(S.period) + '"></label>' +
       '<label class="f"><span>제출 마감(비우면 마감 없음)</span><input type="datetime-local" class="w100" data-bind="aSet" data-k="deadline" value="' + esc(dl) + '"></label>' +
       '<label class="f"><span>학교 평균 시수 직접 지정(비우면 자동 계산: ' + fmt(auto) + '시간)</span><input type="number" step="0.01" class="w100" data-bind="aSet" data-k="avgHoursManual" value="' + esc(val(S.avgHoursManual)) + '"></label>' +
+      '<label class="f"><span>근무 개월수 환산 시 기본점수 하한</span><label class="small"><input type="checkbox" data-bind="aSetChk" data-k="prorateFloor"' + (String(S.prorateFloor) === '1' ? ' checked' : '') + '> 환산 점수가 기본점수(주당 수업시수 23.5, 생활지도 29, 업무추진 25)보다 낮으면 기본점수를 줌</label>' +
+      '<div class="muted small">평가표 비고의 "기본점수 미만 점수가 나올 경우는 기본점수 부여" 규정입니다. 해제하면 (개월수÷12)를 그대로 곱합니다.</div></label>' +
       '</div><h3>① 예산 지원 사업 목록</h3><div class="row" style="margin-bottom:8px">' +
       (S.budgetList || []).map(function (n, i) { return '<span class="badge info">' + esc(n) + ' <a href="#" data-act="aBudDel" data-i="' + i + '" style="color:#b42318;text-decoration:none">×</a></span>'; }).join(' ') + '</div>' +
       '<div class="row"><input type="text" id="bud-new" placeholder="사업명" style="width:240px"><button class="btn sm" data-act="aBudAdd">추가</button></div>' +
@@ -1841,6 +1869,7 @@ var Hwpx = (function () {
       '<div class="card"><h2>위원회 비밀번호</h2><button class="btn" data-act="aPw">비밀번호 변경</button></div>';
   }
   BIND.aSet = function (el) { A.S[el.dataset.k] = el.value; };
+  BIND.aSetChk = function (el) { A.S[el.dataset.k] = el.checked ? '1' : ''; };
   ACT.aBudAdd = function () {
     var v = document.getElementById('bud-new').value.trim();
     if (!v) return;
