@@ -93,6 +93,17 @@ table.form td.bs { font-size: 13.5px; line-height: 1.85; vertical-align: top; }
 .autobar { display: flex; gap: 14px; align-items: center; padding: 12px 14px; margin-bottom: 14px; background: var(--brand-weak); border-radius: 8px; line-height: 1.8; }
 .autobar .btn { flex: none; padding: 9px 20px; font-size: 15px; }
 textarea.basis-in { min-height: 44px; font-size: 13.5px; line-height: 1.8; overflow: hidden; }
+/* 근거 보기: 번호 뒤 첫 글자에 맞춰 내어쓰기 */
+.basis-view { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 13.5px; line-height: 1.8; min-height: 44px; background: #fff; cursor: text; }
+.basis-view:hover { border-color: var(--brand); }
+.basis-view.ro { cursor: default; background: var(--auto); }
+.basis-view.ro:hover { border-color: var(--line); }
+.bv .bl { display: flex; }
+.bv .bl .bn { flex: none; padding-right: .35em; }
+.bv .bl .bt { flex: 1; min-width: 0; }
+.bv .b2 { padding-left: 1.1em; }
+.bv .bgap { height: .6em; }
+.bv .bph { color: var(--muted); }
 .linkbtn { border: 0; background: none; color: var(--brand); font-size: 12.5px; padding: 2px 0; cursor: pointer; text-decoration: underline; }
 .srcbadge { margin-top: 6px; min-height: 4px; }
 @media (max-width: 720px) { .autobar { flex-direction: column; align-items: stretch; } }
@@ -258,6 +269,13 @@ var Calc = (function () {
     return name + (tags.length ? '(' + tags.join(', ') + ')' : '');
   }
   function isActivity(p) { return p.kind !== SUBJECT_KIND; }
+  function shortName(p) { return String(p.memo || '').replace(/\(시수 포함[^)]*\)/, '').trim() || p.kind; }
+  /* 근거 표시용 번호 매기기: 1. 학기 / 1) 세부 항목, 학기 사이 빈 줄 */
+  function numbered(blocks) {
+    return blocks.map(function (b, k) {
+      return (k + 1) + '. ' + b.head + b.items.map(function (t, j) { return '\n ' + (j + 1) + ') ' + t; }).join('');
+    }).join('\n\n');
+  }
 
   /* 학교 평균 시수(일반·진로·특수·순회 교사의 인정 시수 평균) */
   function schoolAvgHours(refs) {
@@ -291,7 +309,7 @@ var Calc = (function () {
     } else if (ref.avgHours) {
       var ah = num(settings && settings.avgHours);
       S.g1 = hoursScore(ah);
-      B.g1 = '평균 시수 인정' + (ref.avgReason ? '(' + ref.avgReason + ')' : '') + '\n학교 평균 ' + f(ah) + '시간\n→ ' + hoursBand(ah) + ' 구간 ' + S.g1 + '점';
+      B.g1 = '평균 시수 인정' + (ref.avgReason ? '(' + ref.avgReason + ')' : '') + '\n학교 평균 ' + f(ah) + '시간\n∴ ' + hoursBand(ah) + ' 구간 ' + S.g1 + '점';
     } else if (!worked.length) {
       S.g1 = 23.5;
       B.g1 = '근무 학기 자료 없음\n→ 기본 23.5점';
@@ -303,18 +321,21 @@ var Calc = (function () {
         var act = progs.filter(isActivity), actH = 0;
         act.forEach(function (p) { actH += num(p.hours); });
         var subj = progs.filter(function (p) { return !isActivity(p); });
-        var lines = [semName(w.i) + ': 총 ' + f(h.raw) + '시간'];
-        var split = actH <= h.raw;
-        var subjNote = subj.length ? ' (이 중 ' + subj.map(function (p) { return progLabel(p, p.team ? '팀티칭' : '') + ' ' + f(num(p.hours)) + '시간'; }).join(', ') + ')' : '';
-        lines.push(' · 교과' + (split ? ' ' + f(h.raw - actH) + '시간' : '') + (w.s.gradesText ? ': ' + fmtGrades(w.s.gradesText) : '') + subjNote);
-        if (act.length) lines.push(' · 창체·자유학기 ' + f(actH) + '시간: ' + act.map(function (p) { return progLabel(p, p.team ? '팀티칭' : '') + ' ' + f(num(p.hours)) + '시간'; }).join(', '));
-        if (h.team) lines.push(' · 팀티칭 ' + f(h.team) + '시간은 1/2인 ' + f(h.team / 2) + '시간만 인정 → ' + f(h.recog) + '시간');
-        parts.push(lines.join('\n'));
+        var items = [], split = actH <= h.raw;
+        var subjSolo = subj.filter(function (p) { return !p.team; });
+        items.push('교과' + (split ? ' ' + f(h.raw - actH) + '시간' : '') + (w.s.gradesText ? ': ' + fmtGrades(w.s.gradesText) : '') +
+          (subjSolo.length ? ' (이 중 ' + subjSolo.map(function (p) { return progLabel(p) + ' ' + f(num(p.hours)) + '시간'; }).join(', ') + ')' : ''));
+        if (act.length) items.push('창체·자유학기 ' + f(actH) + '시간: ' + act.map(function (p) { return progLabel(p, p.team ? '팀티칭' : '') + ' ' + f(num(p.hours)) + '시간'; }).join(', '));
+        if (h.team) {
+          var tn = progs.filter(function (p) { return p.team; }).map(shortName);
+          items.push('팀티칭 ' + f(h.team) + '시간(' + tn.join(', ') + ')은 1/2인 ' + f(h.team / 2) + '시간만 인정 → ' + f(h.recog) + '시간');
+        }
+        parts.push({ head: semName(w.i) + ': 총 ' + f(h.raw) + '시간', items: items });
       });
       var avg = tot / worked.length;
       S.g1 = hoursScore(avg);
-      B.g1 = parts.join('\n') + (worked.length === 2 ? '\n→ (1학기+2학기)÷2 = ' : '\n→ ' + semName(worked[0].i) + '만 근무: ') +
-        f(avg) + '시간\n→ ' + hoursBand(avg) + ' 구간 ' + S.g1 + '점';
+      B.g1 = numbered(parts) + (worked.length === 2 ? '\n\n→ (1학기+2학기)÷2 = ' : '\n\n→ ' + semName(worked[0].i) + '만 근무: ') +
+        f(avg) + '시간\n∴ ' + hoursBand(avg) + ' 구간 ' + S.g1 + '점';
     }
 
     // 가2 다학년 교과지도
@@ -336,13 +357,14 @@ var Calc = (function () {
       var actG = {};
       (w.s.programs || []).forEach(function (p) { if (isActivity(p) && Number(p.grade) > 0) actG[p.grade] = 1; });
       var actList = Object.keys(actG).sort();
-      p2.push(semName(w.i) + ': 교과 ' + (w.s.gradesText ? fmtGrades(w.s.gradesText) + ' → ' : '') + g0 + '개 학년' +
-        (exList.length ? ' − 팀티칭 ' + exList.map(function (x) { return x + '학년'; }).join('·') + ' 제외 = ' + g + '개 학년' : '') + ' 인정' + (ref.type === '특수' ? '(특수교사 2개 학년 인정)' : '') + ' → ' + f(pt) + '점' +
-        (actList.length ? '\n · 창체·자유학기 지도(' + actList.map(function (x) { return x + '학년'; }).join('·') + ')는 다학년 교과지도로 인정하지 않음' : ''));
+      var it2 = ['교과: ' + (w.s.gradesText ? fmtGrades(w.s.gradesText) : '') + ' → ' + g0 + '개 학년' + (ref.type === '특수' ? '(특수교사 2개 학년 인정)' : '')];
+      if (exList.length) it2.push('교과 팀티칭 ' + exList.map(function (x) { return x + '학년'; }).join('·') + ' 제외 → ' + g + '개 학년');
+      if (actList.length) it2.push('창체·자유학기 지도(' + actList.map(function (x) { return x + '학년'; }).join('·') + ')는 다학년 교과지도로 인정하지 않음');
+      p2.push({ head: semName(w.i) + ': ' + g + '개 학년 인정 → ' + f(pt) + '점', items: it2 });
     });
     S.g2 = r2(g2);
     var nonClass = (ref.type === '보건' || ref.type === '사서') && !g2;
-    B.g2 = nonClass ? '비교과 교사: 해당 없음' : p2.length ? p2.join('\n') + '\n= 합계 ' + S.g2 + '점' : '해당 없음';
+    B.g2 = nonClass ? '비교과 교사: 해당 없음' : p2.length ? numbered(p2) + '\n\n= 합계 ' + S.g2 + '점' : '해당 없음';
 
     // 가3 창체 및 자유학기 지도
     var g3 = 0, p3 = [];
@@ -356,12 +378,13 @@ var Calc = (function () {
       });
       var n = ok.length, pt = progPoint(n);
       g3 += pt;
-      p3.push(semName(w.i) + ': 인정 ' + n + '개 → ' + f(pt) + '점' +
-        (n ? '\n · 인정: ' + ok.join(', ') : '') +
-        (no.length ? '\n · 제외: ' + no.join(', ') : ''));
+      var it3 = [];
+      if (n) it3.push('인정: ' + ok.join(', '));
+      if (no.length) it3.push('제외: ' + no.join(', '));
+      p3.push({ head: semName(w.i) + ': 인정 ' + n + '개 → ' + f(pt) + '점', items: it3 });
     });
     S.g3 = r2(g3);
-    B.g3 = ((ref.type === '보건' || ref.type === '사서') && !g3) ? '비교과 교사: 해당 없음' : p3.length ? p3.join('\n') + '\n= 합계 ' + S.g3 + '점' : '해당 없음';
+    B.g3 = ((ref.type === '보건' || ref.type === '사서') && !g3) ? '비교과 교사: 해당 없음' : p3.length ? numbered(p3) + '\n\n= 합계 ' + S.g3 + '점' : '해당 없음';
 
     // 가4 수업공개(교사 입력)
     var oc = num(inputs.openCount);
@@ -992,6 +1015,38 @@ var Hwpx = (function () {
   function tIn(k, step, ro) {
     return '<input type="number" min="0" step="' + step + '" class="inline-in" style="background:#fffbe6" data-bind="tInput" data-live="1" data-k="' + k + '" value="' + esc(val(T.form.inputs[k])) + '"' + (ro ? ' disabled' : '') + '>';
   }
+  /* 근거 문장을 보기용 HTML로: "1. ", " 1) ", "→ ", "∴ " 등은 번호 뒤 첫 글자에 맞춰 줄맞춤 */
+  function basisHtml(text) {
+    var t = String(text || '');
+    if (!t.trim()) return '';
+    return '<div class="bv">' + t.split('\n').map(function (line) {
+      if (!line.trim()) return '<div class="bgap"></div>';
+      var m = line.match(/^(\s*)(\d+\.|\d+\)|[·→∴=※\-])\s+(.*)$/);
+      if (!m) return '<div class="bl' + (/^\s/.test(line) ? ' b2' : '') + '"><span class="bt">' + esc(line.trim()) + '</span></div>';
+      return '<div class="bl' + (m[1].length ? ' b2' : '') + '"><span class="bn">' + esc(m[2]) + '</span><span class="bt">' + esc(m[3]) + '</span></div>';
+    }).join('') + '</div>';
+  }
+  function basisView(k, ro) {
+    var h = basisHtml(T.form.basis[k]);
+    return '<div class="basis-view' + (ro ? ' ro' : '') + '" id="bv-' + k + '"' + (ro ? '' : ' data-act="tBasisEdit" data-k="' + k + '" title="눌러서 고치기"') + '>' + (h || '<span class="bph">' + (ro ? '-' : '산출 근거를 적어 주십시오.(선택)') + '</span>') + '</div>';
+  }
+  function showBasisView(k) {
+    var v = document.getElementById('bv-' + k), a = document.querySelector('[data-bind=tBasis][data-k="' + k + '"]');
+    if (!v || !a) return;
+    var h = basisHtml(T.form.basis[k]);
+    v.innerHTML = h || '<span class="bph">산출 근거를 적어 주십시오.(선택)</span>';
+    v.style.display = ''; a.style.display = 'none';
+  }
+  ACT.tBasisEdit = function (b) {
+    var k = b.dataset.k, a = document.querySelector('[data-bind=tBasis][data-k="' + k + '"]');
+    if (!a) return;
+    b.style.display = 'none'; a.style.display = ''; fitArea(a); a.focus();
+  };
+  document.addEventListener('focusout', function (e) {
+    var a = e.target;
+    if (a && a.dataset && a.dataset.bind === 'tBasis') showBasisView(a.dataset.k);
+  });
+
   function basisCell(k, ro) {
     var extra = '';
     if (k === 'g4') extra = '<div class="inrow">외부 공개 수업 ' + tIn('openCount', 1, ro) + ' 회</div>';
@@ -999,7 +1054,7 @@ var Hwpx = (function () {
     if (k === 'r1') extra = '<div class="inrow">⑪ 학생지도 표창 ' + tIn('award1', 1, ro) + ' 건</div><div class="inrow">⑪ 교육활동 표창(업무담당) ' + tIn('award2', 1, ro) + ' 건</div>';
     var reset = (T.b.ref && !ro) ? '<button class="linkbtn" data-act="tAutoOne" data-k="' + k + '">이 항목만 자동 입력</button>' : '';
     var ev = EVID_ITEMS[k] ? '<div class="evid" id="ev-' + k + '">' + evidHtml(k, ro) + '</div>' : '';
-    return '<td class="bs">' + extra + '<textarea class="basis-in" data-bind="tBasis" data-live="1" data-k="' + k + '" placeholder="산출 근거를 적어 주십시오.(선택)"' + (ro ? ' disabled' : '') + '>' + esc(T.form.basis[k] || '') + '</textarea>' + reset + ev + '</td>';
+    return '<td class="bs">' + extra + basisView(k, ro) + '<textarea class="basis-in" style="display:none" data-bind="tBasis" data-live="1" data-k="' + k + '" placeholder="산출 근거를 적어 주십시오.(선택)"' + (ro ? ' disabled' : '') + '>' + esc(T.form.basis[k] || '') + '</textarea>' + reset + ev + '</td>';
   }
   function evidHtml(k, ro) {
     var list = (T.b.evidence || []).filter(function (e) { return e.item === k; });
@@ -1052,7 +1107,7 @@ var Hwpx = (function () {
       var si = document.querySelector('[data-bind=tScore][data-k="' + k + '"]');
       var bi = document.querySelector('[data-bind=tBasis][data-k="' + k + '"]');
       if (si) si.value = val(c.scores[k] === null ? '' : c.scores[k]);
-      if (bi) { bi.value = c.basis[k] || ''; fitArea(bi); }
+      if (bi) { bi.value = c.basis[k] || ''; if (document.activeElement === bi) fitArea(bi); else showBasisView(k); }
     });
   }
   function tRefresh() {
@@ -1471,7 +1526,7 @@ var Hwpx = (function () {
       var x = v.items[it.key];
       var badge = x.status === '일치' ? '<span class="badge ok">일치</span>' : x.status === '확인 필요' ? '<span class="badge warn">확인 필요</span>' : x.status === '조정 반영' ? '<span class="badge info">조정 반영</span>' : '<span class="badge">기준 없음</span>';
       return '<tr><td><b>' + it.label + '</b></td><td class="num">' + fmt(x.teacher) + '<div>' + srcBadge(s, it.key) + '</div></td><td class="num">' + fmt(x.base) + '</td><td class="c">' + badge + '</td>' +
-        '<td class="small pre">' + esc((s.basis || {})[it.key] || '') + '</td><td class="small pre">' + esc(x.basis || '') + (x.note ? '<div class="muted">' + esc(x.note) + '</div>' : '') + '</td>' +
+        '<td class="small">' + basisHtml((s.basis || {})[it.key] || '') + '</td><td class="small">' + basisHtml(x.basis || '') + (x.note ? '<div class="muted">' + esc(x.note) + '</div>' : '') + '</td>' +
         '<td class="c"><input type="number" step="0.01" style="width:76px" id="adj-' + it.key + '" value="' + esc(val(adj.scores[it.key])) + '" placeholder="-"></td></tr>';
     }).join('');
     var sumRow = function (label, k) {
