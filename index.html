@@ -88,6 +88,7 @@ table.form td.sc { width: 104px; text-align: center; }
 table.form td.sc.auto { background: var(--auto); }
 table.form td.bs { font-size: 13.5px; line-height: 1.85; vertical-align: top; }
 .note { color: var(--muted); font-size: 12.5px; }
+.ref-note { width: 300px; min-height: 54px; font: inherit; font-size: 12.5px; line-height: 1.45; padding: 4px 6px; resize: vertical; white-space: pre-wrap; }
 .pre { white-space: pre-line; line-height: 1.8; }
 .autobar { display: flex; gap: 14px; align-items: center; padding: 12px 14px; margin-bottom: 14px; background: var(--brand-weak); border-radius: 8px; line-height: 1.8; }
 .autobar .btn { flex: none; padding: 9px 20px; font-size: 15px; }
@@ -1689,7 +1690,7 @@ var Hwpx = (function () {
         '<td>' + (r.type === '보건' ? refInput(id, 'healthCases', 'numnull', r.healthCases, 70, ' step="1"') : '<span class="muted">-</span>') + '</td>' +
         '<td class="num" id="cg1-' + id + '" title="' + esc(c.basis.g1) + '">' + fmt(c.scores.g1) + '</td><td class="num" id="cg2-' + id + '" title="' + esc(c.basis.g2) + '">' + fmt(c.scores.g2) + '</td><td class="num" id="cg3-' + id + '" title="' + esc(c.basis.g3) + '">' + fmt(c.scores.g3) + '</td>' +
         '<td>' + refInput(id, 'check.openCount', 'numnull', r.check.openCount, 50, ' step="1"') + '</td><td>' + refInput(id, 'check.trainingHours', 'numnull', r.check.trainingHours, 60) + '</td>' +
-        '<td>' + refInput(id, 'note', 'text', r.note, 220) + '</td></tr>';
+        '<td><textarea class="ref-note" rows="3" data-bind="aRef" data-id="' + id + '" data-path="note" data-type="text">' + esc(val(r.note)) + '</textarea></td></tr>';
     }).join('');
     var sh = '<th>근무</th><th>주당 시수</th><th>담당 학년(학급)</th><th>학년 수</th><th>창체·자유학기<br>교과 팀티칭</th>';
     return '<div class="card"><h2>기준자료: 가. 학습지도 · 확인값</h2>' +
